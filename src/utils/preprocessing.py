@@ -32,7 +32,7 @@ def get_batches(X: np.ndarray, y: np.ndarray, batch_size: int) -> list[tuple]:
     total_batches = math.ceil(total_size / batch_size)
     batches = [
         (
-            X[i * batch_size : min((i + 1) * batch_size, total_size)],
+            X[i * batch_size : min((i + 1) * batch_size, total_size), :],
             y[i * batch_size : min((i + 1) * batch_size, total_size)],
         )
         for i in range(total_batches)
