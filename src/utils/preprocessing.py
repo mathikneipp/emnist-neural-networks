@@ -1,5 +1,5 @@
 import numpy as np
-import math
+from collections.abc import Iterator
 
 
 def scaler(X):
@@ -26,15 +26,11 @@ def data_split(
     return X_1, y_1, X_2, y_2
 
 
-def get_batches(X: np.ndarray, y: np.ndarray, batch_size: int) -> list[tuple]:
-    
+def get_batches(
+    X: np.ndarray, y: np.ndarray, batch_size: int
+) -> Iterator[tuple[np.ndarray, np.ndarray]]:
     total_size = y.size
-    total_batches = math.ceil(total_size / batch_size)
-    batches = [
-        (
-            X[i * batch_size : min((i + 1) * batch_size, total_size), :],
-            y[i * batch_size : min((i + 1) * batch_size, total_size)],
-        )
-        for i in range(total_batches)
-    ]
-    return batches
+
+    for start in range(0, total_size, batch_size):
+        end = min(start + batch_size, total_size)
+        yield X[start:end, :], y[start:end]

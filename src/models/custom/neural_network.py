@@ -6,7 +6,7 @@ from .layers import DenseLayer
 from .optimizers import Optimizer
 from .loss import Loss
 
-from ..utils.preprocessing import get_batches
+from ...utils.preprocessing import get_batches
 
 
 class SecuentialNeuralNetwork:
@@ -17,7 +17,7 @@ class SecuentialNeuralNetwork:
         self.loss_function = loss_function
         self.optimizer = optimizer
 
-        self.fit_loss = []
+        self.train_loss = []
         self.val_loss = []
 
     def fit(
@@ -25,10 +25,10 @@ class SecuentialNeuralNetwork:
         X: np.ndarray,
         y: np.ndarray,
         epochs: int,
-        batch_size: int,
+        batch_size: int | None,
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
-        early_stopping: int = 5,
+        early_stopping: int | None = 5,
     ):
         indices = np.arange(y.size)
 
@@ -45,35 +45,47 @@ class SecuentialNeuralNetwork:
             np.random.shuffle(indices)
             X, y = X[indices], y[indices]
 
-            batches = get_batches(X, y, batch_size)
+            if batch_size is not None:
+                batches = get_batches(X, y, batch_size)
+            else:
+                batches = [(X, y)]
 
+            epoch_loss, seen = 0., 0
+            
+            # Batches iteration
             for batch_X, batch_y in batches:
                 y_pred = self._forward_pass(batch_X)
 
+                batch_loss = self.loss_function.fn(batch_y, y_pred)
+                batch_size = batch_y.shape[0]
+
+                epoch_loss += batch_loss * batch_size
+                seen += batch_size
+
                 self._backward_pass(batch_y, y_pred)
-
                 self.optimizer.step(self.layers)
-            
-            
-            fit_loss = self.loss_function.fn(y, self.predict(X))
-            self.fit_loss.append(fit_loss)
 
-            # Early stopping
+            train_loss = epoch_loss / seen
+            self.train_loss.append(train_loss)
+
+            # Val. eval
             if (X_val is not None) and (y_val is not None):
                 val_loss = self.loss_function.fn(y_val, self.predict(X_val))
                 self.val_loss.append(val_loss)
 
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    wait = 0
-                    best_layers = deepcopy(self.layers)
+                # Early stopping
+                if early_stopping is not None:
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        wait = 0
+                        best_layers = deepcopy(self.layers)
 
-                else:
-                    wait += 1
+                    else:
+                        wait += 1
 
-                    if wait >= early_stopping:
-                        print("Early stopping.")
-                        break
+                        if wait >= early_stopping:
+                            print(f"Early stopping after epoch: {epoch}")
+                            break
 
         if best_layers is not None:
             self.layers = best_layers
@@ -88,19 +100,14 @@ class SecuentialNeuralNetwork:
         return z_l
 
     def _backward_pass(self, y: np.ndarray, y_pred: np.ndarray) -> None:
-        gradients = []
-
         last_layer = self.layers[-1]
 
-        y_d = self.loss_function.grad(y, y_pred)
-        delta_l = last_layer.activation.grad(last_layer.a) * y_d
+        delta_l = self.loss_function.grad(y, y_pred)
+        last_layer.W_d = delta_l.T @ last_layer.z_in
+        last_layer.b_d = np.sum(delta_l, axis=0)
 
-        W_d = delta_l.T @ last_layer.z_in
-
-        gradients.append((W_d, delta_l))
+        if last_layer.l2_regularization > 0:
+            last_layer.W_d += last_layer.l2_regularization * last_layer.W
 
         for l in range(len(self.layers) - 2, -1, -1):
-            W_d, delta_l = self.layers[l].backward(self.layers[l + 1].W, delta_l)
-            gradients.append((W_d, delta_l))
-
-        gradients.reverse()
+            _, delta_l = self.layers[l].backward(self.layers[l + 1].W, delta_l)
