@@ -50,8 +50,8 @@ class SecuentialNeuralNetwork:
             else:
                 batches = [(X, y)]
 
-            epoch_loss, seen = 0., 0
-            
+            epoch_loss, seen = 0.0, 0
+
             # Batches iteration
             for batch_X, batch_y in batches:
                 y_pred = self._forward_pass(batch_X)
@@ -92,6 +92,44 @@ class SecuentialNeuralNetwork:
 
     def predict(self, X: np.ndarray):
         return self._forward_pass(X, training=False)
+
+    @classmethod
+    def build_from_config(
+        cls,
+        input_dim,
+        output_dim,
+        activation,
+        output_activation,
+        config: dict,
+        optimizer,
+        loss,
+    ):
+        layers = []
+        last_dim = input_dim
+        
+        # Hidden layers
+        for next_dim in config["layers"]:
+            layers.append(
+                DenseLayer(
+                    input_dim=last_dim,
+                    output_dim=next_dim,
+                    activation=activation(),
+                    l2_regularization=config["l2"],
+                )
+            )
+            last_dim = next_dim
+
+        # Out layer
+        layers.append(
+            DenseLayer(
+                input_dim=last_dim,
+                output_dim=output_dim,
+                activation=output_activation(),
+                l2_regularization=config["l2"],
+            )
+        )
+        
+        return cls(layers=layers, optimizer=optimizer, loss_function=loss)
 
     def _forward_pass(self, X, training: bool = True) -> np.ndarray:
         z_l = X

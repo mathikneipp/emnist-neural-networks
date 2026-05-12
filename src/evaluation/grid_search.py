@@ -151,6 +151,4 @@ def random_grid_search_torch(
 
         models.append(model)
 
-        print()
-
     return models, model_config
