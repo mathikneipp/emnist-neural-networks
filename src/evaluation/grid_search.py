@@ -136,7 +136,7 @@ def random_grid_search_torch(
 
         model.to(device)
 
-        _, _ = train_and_eval(
+        _, _, _ = train_and_eval(
             train_loader,
             val_loader,
             model,
@@ -145,8 +145,7 @@ def random_grid_search_torch(
             device,
             epochs=epochs,
             early_stopping=early_stopping,
-            scheduling=model_config[i]["scheduling"],
-            lr_0=0.001,
+            scheduling=model_config[i]["scheduling"]
         )
 
         models.append(model)

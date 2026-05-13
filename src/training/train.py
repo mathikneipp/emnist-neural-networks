@@ -51,7 +51,6 @@ def train_and_eval(
     epochs,
     early_stopping,
     scheduling,
-    lr_0
 ) -> tuple[list, list]:
     model = model.to(device)
 
@@ -65,18 +64,19 @@ def train_and_eval(
 
     counter = 0
     scheduler = None
+    best_epoch = 0
     
     if scheduling is not None:
         if scheduling["type"] == "linear":
-            lr_lambda = lambda epoch: max(scheduling["lr_min"], lr_0 - scheduling["k"] * epoch)
+            lr_0 = optimizer.param_groups[0]["lr"]
+            lr_lambda = lambda epoch: max(
+                scheduling["lr_min"] / lr_0, 1 - (scheduling["k"] / lr_0) * epoch
+            )
         elif scheduling["type"] == "exponential":
-            lr_lambda = lambda epoch: lr_0 * (scheduling["gamma"]**epoch)
-        
-        scheduler = torch.optim.lr_scheduler.LambdaLR(
-            optimizer,
-            lr_lambda=lr_lambda
-        )
-    
+            lr_lambda = lambda epoch: scheduling["gamma"] ** epoch
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+
     for t in tqdm(range(epochs)):
 
         train_losses = train_loop(train_loader, model, loss_fn, optimizer, device)
@@ -91,6 +91,7 @@ def train_and_eval(
             best_val_loss = val_loss
             best_model = deepcopy(model.state_dict())
             counter = 0
+            best_epoch = t
         else:
             counter += 1
 
@@ -98,7 +99,7 @@ def train_and_eval(
         if counter >= early_stopping:
             print(f"Early stopping after epoch: {t}")
             break
-            
+
         if scheduler is not None:
             scheduler.step()
 
@@ -111,4 +112,4 @@ def train_and_eval(
     model.train_batch_loss = batch_train_losses
     model.val_batch_loss = batch_val_losses
 
-    return epoch_train_losses, epoch_val_losses
+    return epoch_train_losses, epoch_val_losses, best_epoch + 1

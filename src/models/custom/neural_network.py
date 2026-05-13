@@ -29,13 +29,14 @@ class SecuentialNeuralNetwork:
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         early_stopping: int | None = 5,
-    ):
+    ) -> int:
         indices = np.arange(y.size)
 
         # Early stopping settings
         wait = 0
         best_val_loss = np.inf
         best_layers = None
+        best_epoch = 0
 
         # tqdm bar
         bar = tqdm(range(epochs), desc="Training", unit="ep")
@@ -79,6 +80,7 @@ class SecuentialNeuralNetwork:
                         best_val_loss = val_loss
                         wait = 0
                         best_layers = deepcopy(self.layers)
+                        best_epoch = epoch
 
                     else:
                         wait += 1
@@ -87,8 +89,12 @@ class SecuentialNeuralNetwork:
                             print(f"Early stopping after epoch: {epoch}")
                             break
 
+            self.optimizer.scheduling_step(epoch)
+
         if best_layers is not None:
             self.layers = best_layers
+        
+        return best_epoch + 1
 
     def predict(self, X: np.ndarray):
         return self._forward_pass(X, training=False)
@@ -106,7 +112,7 @@ class SecuentialNeuralNetwork:
     ):
         layers = []
         last_dim = input_dim
-        
+
         # Hidden layers
         for next_dim in config["layers"]:
             layers.append(
@@ -128,8 +134,28 @@ class SecuentialNeuralNetwork:
                 l2_regularization=config["l2"],
             )
         )
-        
-        return cls(layers=layers, optimizer=optimizer, loss_function=loss)
+
+        optimizer_instance = optimizer
+        if isinstance(optimizer, type):
+            optimizer_kwargs = {}
+
+            if "scheduling" in config:
+                optimizer_kwargs["scheduling"] = config["scheduling"]
+
+            if "learning_rate" in config:
+                optimizer_kwargs["learning_rate"] = config["learning_rate"]
+            elif "lr" in config:
+                optimizer_kwargs["learning_rate"] = config["lr"]
+
+            optimizer_instance = optimizer(**optimizer_kwargs)
+
+        loss_instance = loss() if isinstance(loss, type) else loss
+
+        return cls(
+            layers=layers,
+            optimizer=optimizer_instance,
+            loss_function=loss_instance,
+        )
 
     def _forward_pass(self, X, training: bool = True) -> np.ndarray:
         z_l = X

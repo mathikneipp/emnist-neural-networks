@@ -9,6 +9,10 @@ class Optimizer(ABC):
     def step(self, layers: list, t: int) -> None:
         pass
 
+    @abstractmethod
+    def scheduling_step(self, epoch: int) -> None:
+        pass
+
 
 class GradientDescent(Optimizer):
     def __init__(self, learning_rate: float = 0.01, scheduling: dict[str] = None):
@@ -18,14 +22,6 @@ class GradientDescent(Optimizer):
         self.t = 0
 
     def step(self, layers: list[DenseLayer]) -> None:
-        self.t += 1
-
-        if self.scheduling is not None:
-            if self.scheduling.get("type") == "linear":
-                self._linear_scheduling(self.t)
-            elif self.scheduling.get("type") == "exponential":
-                self._exponential_scheduling(self.t)
-
         for layer in layers:
             if layer.W_d is not None:
                 layer.W -= self.learning_rate * layer.W_d
@@ -33,16 +29,23 @@ class GradientDescent(Optimizer):
             if layer.b_d is not None:
                 layer.bias -= self.learning_rate * layer.b_d
 
-    def _linear_scheduling(self, t: int) -> None:
+    def scheduling_step(self, epoch: int) -> None:
+        if self.scheduling is not None:
+            if self.scheduling.get("type") == "linear":
+                self._linear_scheduling_step(epoch)
+            elif self.scheduling.get("type") == "exponential":
+                self._exponential_scheduling_step(epoch)
+
+    def _linear_scheduling_step(self, epoch: int) -> None:
         lr_min = self.scheduling.get("lr_min")
         k = self.scheduling.get("k")
 
-        self.learning_rate = max(lr_min, self.lr_0 - k * t)
+        self.learning_rate = max(lr_min, self.lr_0 - k * epoch)
 
-    def _exponential_scheduling(self, t: int) -> None:
+    def _exponential_scheduling_step(self, epoch: int) -> None:
         gamma = self.scheduling.get("gamma")
 
-        self.learning_rate = self.lr_0 * (gamma**t)
+        self.learning_rate = self.lr_0 * (gamma**epoch)
 
 
 class ADAM(Optimizer):
@@ -70,12 +73,6 @@ class ADAM(Optimizer):
 
     def step(self, layers: list[DenseLayer]) -> None:
         self.t += 1
-
-        if self.scheduling is not None:
-            if self.scheduling.get("type") == "linear":
-                self._linear_scheduling(self.t)
-            elif self.scheduling.get("type") == "exponential":
-                self._exponential_scheduling(self.t)
 
         for layer in layers:
 
@@ -107,13 +104,20 @@ class ADAM(Optimizer):
                     self.learning_rate * b_mt_hat / (np.sqrt(b_st_hat) + self.epsilon)
                 )
 
-    def _linear_scheduling(self, t: int) -> None:
+    def scheduling_step(self, epoch: int) -> None:
+        if self.scheduling is not None:
+            if self.scheduling.get("type") == "linear":
+                self._linear_scheduling_step(epoch)
+            elif self.scheduling.get("type") == "exponential":
+                self._exponential_scheduling_step(epoch)
+
+    def _linear_scheduling_step(self, epoch: int) -> None:
         lr_min = self.scheduling.get("lr_min")
         k = self.scheduling.get("k")
 
-        self.learning_rate = max(lr_min, self.lr_0 - k * t)
+        self.learning_rate = max(lr_min, self.lr_0 - k * epoch)
 
-    def _exponential_scheduling(self, t: int) -> None:
+    def _exponential_scheduling_step(self, epoch: int) -> None:
         gamma = self.scheduling.get("gamma")
 
-        self.learning_rate = self.lr_0 * (gamma**t)
+        self.learning_rate = self.lr_0 * (gamma**epoch)

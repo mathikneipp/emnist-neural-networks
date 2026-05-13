@@ -5,6 +5,55 @@ import torch
 
 from ..evaluation.metrics import f1_score
 
+EMNIST_CLASSES = [
+    '0',  # 0
+    '1',  # 1
+    '2',  # 2
+    '3',  # 3
+    '4',  # 4
+    '5',  # 5
+    '6',  # 6
+    '7',  # 7
+    '8',  # 8
+    '9',  # 9
+    'A',  # 10
+    'B',  # 11
+    'C',  # 12
+    'D',  # 13
+    'E',  # 14
+    'F',  # 15
+    'G',  # 16
+    'H',  # 17
+    'I',  # 18
+    'J',  # 19
+    'K',  # 20
+    'L',  # 21
+    'M',  # 22
+    'N',  # 23
+    'O',  # 24
+    'P',  # 25
+    'Q',  # 26
+    'R',  # 27
+    'S',  # 28
+    'T',  # 29
+    'U',  # 30
+    'V',  # 31
+    'W',  # 32
+    'X',  # 33
+    'Y',  # 34
+    'Z',  # 35
+    'a',  # 36
+    'b',  # 37
+    'd',  # 38
+    'e',  # 39
+    'f',  # 40
+    'g',  # 41
+    'h',  # 42
+    'n',  # 43
+    'q',  # 44
+    'r',  # 45
+    't'   # 46
+]
 
 def plot_random_images(
     images, seed=42, n=4, figsize=(8, 8), cmap=None, image_shape=None
@@ -101,7 +150,7 @@ def plot_training_history(train_loss: list[float], val_loss: list[float]) -> Non
     plt.show()
 
 
-def evaluate_model(model, X_train, y_train, X_val, y_val):
+def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "emnist_bymerge", val_name: str = "Validation"):
     """
     Evaluates a multiclass classification model and plots:
     - Cross-Entropy Loss
@@ -193,7 +242,7 @@ def evaluate_model(model, X_train, y_train, X_val, y_val):
         Plots a bar chart comparing train and validation metrics.
         """
         values = [train_value, val_value]
-        labels = ["Train", "Validation"]
+        labels = ["Train", val_name]
 
         plt.figure(figsize=(6.5, 5))
 
@@ -223,13 +272,23 @@ def evaluate_model(model, X_train, y_train, X_val, y_val):
         """
         Plots a single multiclass confusion matrix.
         """
+        if dataset_name == "emnist_bymerge":
+            ticks = EMNIST_CLASSES
         plt.figure(figsize=(8.5, 7))
         plt.imshow(cm, cmap="Blues")
         plt.title(title, fontsize=16, fontweight="bold")
         plt.xlabel("Predicted", fontsize=12)
         plt.ylabel("True", fontsize=12)
-        plt.xticks(np.arange(len(classes)), classes, rotation=90)
-        plt.yticks(np.arange(len(classes)), classes)
+        if ticks:
+            tick_positions = np.arange(len(classes))
+
+            plt.xticks(tick_positions, ticks)
+            plt.yticks(tick_positions, ticks)
+        
+        else:
+            plt.xticks(np.arange(len(classes)), classes)
+            plt.yticks(np.arange(len(classes)), classes)
+            
         plt.colorbar()
 
         plt.tight_layout()
@@ -261,7 +320,7 @@ def evaluate_model(model, X_train, y_train, X_val, y_val):
 
     plot_confusion_matrix(train_cm, train_classes, "Train Confusion Matrix")
 
-    plot_confusion_matrix(val_cm, val_classes, "Validation Confusion Matrix")
+    plot_confusion_matrix(val_cm, val_classes, f"{val_name} Confusion Matrix")
 
 
 def compare_models(models: list, model_names: list[str] = None):
