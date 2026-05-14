@@ -75,21 +75,26 @@ class CrossEntropy(Loss):
 
     def grad(self, y: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
         """
-        Compute the cross-entropy gradient with respect to the predictions.
+        Compute the combined softmax-cross-entropy gradient at the output logits.
 
         Args:
             y (np.ndarray): Ground-truth class labels.
             y_pred (np.ndarray): Predicted class probabilities.
 
         Returns:
-            np.ndarray: Gradient of the loss with respect to `y_pred`.
+            np.ndarray: Mean gradient of the loss with respect to the output logits.
         """
         epsilon = 1e-15
         y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
 
         batch_size = y.shape[0]
-        grad = y_pred.copy()
-        grad[np.arange(batch_size), y] -= 1
-        grad /= batch_size
+        num_classes = y_pred.shape[1]
+
+        y_one_hot = np.zeros((batch_size, num_classes))
+        y_one_hot[np.arange(batch_size), y] = 1
+
+        y_smooth = y_one_hot * (1 - self.smoothing) + self.smoothing / num_classes
+
+        grad = (y_pred - y_smooth) / batch_size
 
         return grad

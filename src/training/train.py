@@ -76,6 +76,7 @@ def train_and_eval(
     epochs,
     early_stopping,
     scheduling,
+    epsilon: float = 1e-3,
 ) -> tuple[list, list]:
     """
     Train a PyTorch model and track training and validation history.
@@ -90,6 +91,8 @@ def train_and_eval(
         epochs: Maximum number of training epochs.
         early_stopping: Number of epochs without improvement before stopping.
         scheduling: Optional learning rate scheduling configuration.
+        epsilon (float): Minimum improvement in validation loss required to reset
+            early stopping patience. Defaults to 1e-3.
 
     Returns:
         tuple[list, list]: Training loss history, validation loss history, and best epoch.
@@ -107,7 +110,7 @@ def train_and_eval(
     counter = 0
     scheduler = None
     best_epoch = 0
-    
+
     if scheduling is not None:
         if scheduling["type"] == "linear":
             lr_0 = optimizer.param_groups[0]["lr"]
@@ -129,7 +132,7 @@ def train_and_eval(
         epoch_train_losses.append(float(np.mean(train_losses)))
         epoch_val_losses.append(float(val_loss))
 
-        if val_loss < best_val_loss:
+        if val_loss + epsilon < best_val_loss:
             best_val_loss = val_loss
             best_model = deepcopy(model.state_dict())
             counter = 0

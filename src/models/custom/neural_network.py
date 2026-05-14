@@ -13,6 +13,7 @@ class SecuentialNeuralNetwork:
     """
     Sequential neural network built from custom dense layers.
     """
+
     def __init__(
         self, layers: list[DenseLayer], optimizer: Optimizer, loss_function: Loss
     ):
@@ -40,6 +41,7 @@ class SecuentialNeuralNetwork:
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         early_stopping: int | None = 5,
+        epsilon: float = 1e-3,
     ) -> int:
         """
         Train the neural network using mini-batch gradient-based optimization.
@@ -53,6 +55,8 @@ class SecuentialNeuralNetwork:
             y_val (np.ndarray | None, optional): Validation target labels. Defaults to None.
             early_stopping (int | None, optional): Number of epochs to wait for validation
                 improvement before stopping. Defaults to 5.
+            epsilon (float): Minimum improvement in validation loss required to reset early stopping
+                patience. Defaults to 1e-3.
 
         Returns:
             int: Number of epochs effectively completed or the best epoch when early stopping is used.
@@ -103,7 +107,7 @@ class SecuentialNeuralNetwork:
 
                 # Early stopping
                 if early_stopping is not None:
-                    if val_loss < best_val_loss:
+                    if val_loss + epsilon < best_val_loss:
                         best_val_loss = val_loss
                         wait = 0
                         best_layers = deepcopy(self.layers)
@@ -189,21 +193,13 @@ class SecuentialNeuralNetwork:
             )
         )
 
-        optimizer_instance = optimizer
-        if isinstance(optimizer, type):
-            optimizer_kwargs = {}
+        optimizer_instance = optimizer(
+            learning_rate=config["lr"], scheduling=config["scheduling"]
+        )
 
-            if "scheduling" in config:
-                optimizer_kwargs["scheduling"] = config["scheduling"]
-
-            if "learning_rate" in config:
-                optimizer_kwargs["learning_rate"] = config["learning_rate"]
-            elif "lr" in config:
-                optimizer_kwargs["learning_rate"] = config["lr"]
-
-            optimizer_instance = optimizer(**optimizer_kwargs)
-
-        loss_instance = loss() if isinstance(loss, type) else loss
+        loss_instance = (
+            loss(config["label_smoothing"]) if isinstance(loss, type) else loss
+        )
 
         return cls(
             layers=layers,
