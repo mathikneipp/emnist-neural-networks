@@ -5,7 +5,8 @@ Este repositorio contiene la implementación del Trabajo Práctico 3 de la mater
 ## Estructura
 
 ```text
-.
+emnist-neural-networks
+|
 ├── data/
 │   ├── X_images.npy
 │   └── y_images.npy
@@ -93,7 +94,7 @@ Dependencias principales:
 
 ```bash
 git clone <URL_DEL_REPOSITORIO>
-cd Kneipp_Mathias_TP3
+cd emnist-neural-networks
 ```
 
 2. Crear y activar un entorno virtual:
