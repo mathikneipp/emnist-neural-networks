@@ -5,23 +5,56 @@ from .layers import DenseLayer
 
 
 class Optimizer(ABC):
+    """
+    Base interface for optimizers used by the custom neural network.
+    """
     @abstractmethod
     def step(self, layers: list, t: int) -> None:
+        """
+        Update model parameters using the stored layer gradients.
+
+        Args:
+            layers (list): Layers whose parameters will be updated.
+            t (int): Optimization step index.
+        """
         pass
 
     @abstractmethod
     def scheduling_step(self, epoch: int) -> None:
+        """
+        Update the learning rate according to the configured schedule.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         pass
 
 
 class GradientDescent(Optimizer):
+    """
+    Gradient descent optimizer with optional learning rate scheduling.
+    """
     def __init__(self, learning_rate: float = 0.01, scheduling: dict[str] = None):
+        """
+        Initialize a gradient descent optimizer.
+
+        Args:
+            learning_rate (float, optional): Initial learning rate. Defaults to 0.01.
+            scheduling (dict[str], optional): Learning rate scheduling configuration.
+                Defaults to None.
+        """
         self.lr_0 = learning_rate
         self.learning_rate = learning_rate
         self.scheduling = scheduling
         self.t = 0
 
     def step(self, layers: list[DenseLayer]) -> None:
+        """
+        Apply a gradient descent update to each layer parameter.
+
+        Args:
+            layers (list[DenseLayer]): Layers to update.
+        """
         for layer in layers:
             if layer.W_d is not None:
                 layer.W -= self.learning_rate * layer.W_d
@@ -30,6 +63,12 @@ class GradientDescent(Optimizer):
                 layer.bias -= self.learning_rate * layer.b_d
 
     def scheduling_step(self, epoch: int) -> None:
+        """
+        Apply one learning rate scheduling step if configured.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         if self.scheduling is not None:
             if self.scheduling.get("type") == "linear":
                 self._linear_scheduling_step(epoch)
@@ -37,18 +76,33 @@ class GradientDescent(Optimizer):
                 self._exponential_scheduling_step(epoch)
 
     def _linear_scheduling_step(self, epoch: int) -> None:
+        """
+        Update the learning rate using a linear decay schedule.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         lr_min = self.scheduling.get("lr_min")
         k = self.scheduling.get("k")
 
         self.learning_rate = max(lr_min, self.lr_0 - k * epoch)
 
     def _exponential_scheduling_step(self, epoch: int) -> None:
+        """
+        Update the learning rate using an exponential decay schedule.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         gamma = self.scheduling.get("gamma")
 
         self.learning_rate = self.lr_0 * (gamma**epoch)
 
 
 class ADAM(Optimizer):
+    """
+    Adam optimizer with optional learning rate scheduling.
+    """
     def __init__(
         self,
         learning_rate: float = 0.001,
@@ -57,6 +111,17 @@ class ADAM(Optimizer):
         epsilon: float = 1e-8,
         scheduling: dict[str] = None,
     ):
+        """
+        Initialize an Adam optimizer.
+
+        Args:
+            learning_rate (float, optional): Initial learning rate. Defaults to 0.001.
+            beta1 (float, optional): Exponential decay rate for the first moment. Defaults to 0.9.
+            beta2 (float, optional): Exponential decay rate for the second moment. Defaults to 0.999.
+            epsilon (float, optional): Numerical stability constant. Defaults to 1e-8.
+            scheduling (dict[str], optional): Learning rate scheduling configuration.
+                Defaults to None.
+        """
         self.lr_0 = learning_rate
         self.learning_rate = learning_rate
         self.beta1 = beta1
@@ -72,6 +137,12 @@ class ADAM(Optimizer):
         self.b_st = 0.0
 
     def step(self, layers: list[DenseLayer]) -> None:
+        """
+        Apply an Adam update to each layer parameter.
+
+        Args:
+            layers (list[DenseLayer]): Layers to update.
+        """
         self.t += 1
 
         for layer in layers:
@@ -105,6 +176,12 @@ class ADAM(Optimizer):
                 )
 
     def scheduling_step(self, epoch: int) -> None:
+        """
+        Apply one learning rate scheduling step if configured.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         if self.scheduling is not None:
             if self.scheduling.get("type") == "linear":
                 self._linear_scheduling_step(epoch)
@@ -112,12 +189,24 @@ class ADAM(Optimizer):
                 self._exponential_scheduling_step(epoch)
 
     def _linear_scheduling_step(self, epoch: int) -> None:
+        """
+        Update the learning rate using a linear decay schedule.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         lr_min = self.scheduling.get("lr_min")
         k = self.scheduling.get("k")
 
         self.learning_rate = max(lr_min, self.lr_0 - k * epoch)
 
     def _exponential_scheduling_step(self, epoch: int) -> None:
+        """
+        Update the learning rate using an exponential decay schedule.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         gamma = self.scheduling.get("gamma")
 
         self.learning_rate = self.lr_0 * (gamma**epoch)

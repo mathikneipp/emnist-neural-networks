@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 
-from ..evaluation.metrics import f1_score
+from ..evaluation.metrics import (compute_accuracy, compute_macro_f1_ova, 
+    compute_multiclass_confusion_matrix)
+from ..evaluation.predictions import get_predictions
 
 EMNIST_CLASSES = [
     '0',  # 0
@@ -58,6 +60,17 @@ EMNIST_CLASSES = [
 def plot_random_images(
     images, seed=42, n=4, figsize=(8, 8), cmap=None, image_shape=None
 ):
+    """
+    Display a random subset of images in a grid.
+
+    Args:
+        images: Collection of images to display.
+        seed: Random seed used to sample the images.
+        n: Number of images to display.
+        figsize: Figure size for the plot.
+        cmap: Colormap used for grayscale images.
+        image_shape: Shape used to unflatten one-dimensional images.
+    """
 
     images = np.array(images)
     assert len(images) >= n, "No hay suficientes imágenes"
@@ -100,6 +113,13 @@ def plot_random_images(
 
 
 def plot_training_history(train_loss: list[float], val_loss: list[float]) -> None:
+    """
+    Plot training and validation loss curves.
+
+    Args:
+        train_loss (list[float]): Training loss history.
+        val_loss (list[float]): Validation loss history.
+    """
     train_loss = np.asarray(train_loss, dtype=float).reshape(-1)
     val_loss = np.asarray(val_loss, dtype=float).reshape(-1)
 
@@ -111,6 +131,15 @@ def plot_training_history(train_loss: list[float], val_loss: list[float]) -> Non
     val_x = np.linspace(1, max_len, val_loss.size) if val_loss.size else np.array([])
 
     def smooth(values: np.ndarray) -> np.ndarray:
+        """
+        Smooth a one-dimensional curve with a moving average.
+
+        Args:
+            values (np.ndarray): Values to smooth.
+
+        Returns:
+            np.ndarray: Smoothed values.
+        """
         if values.size < 10:
             return values
         window = max(3, min(15, values.size // 8))
@@ -150,16 +179,33 @@ def plot_training_history(train_loss: list[float], val_loss: list[float]) -> Non
     plt.show()
 
 
-def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "emnist_bymerge", val_name: str = "Validation"):
+def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "emnist_bymerge", val_name: str = "Validation", device = None):
     """
-    Evaluates a multiclass classification model and plots:
-    - Cross-Entropy Loss
-    - Overall Accuracy
-    - Macro F1-Score using one-vs-all binary F1
-    - Multiclass Confusion Matrices
+    Evaluate a multiclass classification model and plot summary metrics.
+
+    Args:
+        model: Trained model to evaluate.
+        X_train: Training input samples.
+        y_train: Training target labels.
+        X_val: Validation input samples.
+        y_val: Validation target labels.
+        dataset_name (str, optional): Dataset name used to select class labels.
+            Defaults to `"emnist_bymerge"`.
+        val_name (str, optional): Name displayed for the validation split. Defaults to
+            `"Validation"`.
+        device (optional): Device used for PyTorch-based models. Defaults to None.
     """
 
     def to_numpy(array_like):
+        """
+        Convert array-like inputs to NumPy arrays.
+
+        Args:
+            array_like: Input object to convert.
+
+        Returns:
+            np.ndarray: Converted NumPy array.
+        """
         if isinstance(array_like, np.ndarray):
             return array_like
         if torch.is_tensor(array_like):
@@ -167,79 +213,29 @@ def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "e
         return np.asarray(array_like)
 
     def normalize_targets(y):
+        """
+        Convert target labels to a flat integer NumPy array.
+
+        Args:
+            y: Target labels.
+
+        Returns:
+            np.ndarray: Normalized target labels.
+        """
         y = to_numpy(y).reshape(-1)
         if np.issubdtype(y.dtype, np.floating):
             y = y.astype(int)
         return y
 
-    def predict_outputs(X):
-        """
-        Returns model outputs as a NumPy array for both torch and custom models.
-        """
-        if hasattr(model, "predict"):
-            return to_numpy(model.predict(to_numpy(X)))
-
-        if isinstance(model, torch.nn.Module):
-            device = next(model.parameters()).device
-            X_tensor = X if torch.is_tensor(X) else torch.as_tensor(X, dtype=torch.float32)
-            model.eval()
-            with torch.no_grad():
-                return to_numpy(model(X_tensor.to(device)))
-
-        raise TypeError("El modelo debe implementar `predict` o ser un `torch.nn.Module`.")
-
-    def predict_classes(X):
-        """
-        Converts model outputs into class predictions.
-        Supports binary and multiclass outputs.
-        """
-        y_pred = np.asarray(predict_outputs(X))
-
-        if y_pred.ndim == 1:
-            return (y_pred >= 0.5).astype(int)
-
-        if y_pred.ndim == 2 and y_pred.shape[1] == 1:
-            return (y_pred[:, 0] >= 0.5).astype(int)
-
-        return np.argmax(y_pred, axis=1)
-
-    def compute_macro_f1_ova(y_true, y_pred):
-        """
-        Computes Macro F1-Score using one-vs-all binary evaluation.
-        """
-        classes = np.union1d(y_true, y_pred)
-        f1_scores = []
-
-        for cls in classes:
-            y_true_binary = (y_true == cls).astype(int)
-            y_pred_binary = (y_pred == cls).astype(int)
-
-            f1_scores.append(f1_score(y_true_binary, y_pred_binary))
-
-        return float(np.mean(f1_scores)), classes
-
-    def compute_accuracy(y_true, y_pred):
-        """
-        Computes overall multiclass accuracy.
-        """
-        return float(np.mean(y_true == y_pred))
-
-    def compute_multiclass_confusion_matrix(y_true, y_pred):
-        """
-        Computes a single multiclass confusion matrix.
-        """
-        classes = np.union1d(y_true, y_pred)
-        class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
-        cm = np.zeros((len(classes), len(classes)), dtype=int)
-
-        for true_label, pred_label in zip(y_true, y_pred):
-            cm[class_to_idx[true_label], class_to_idx[pred_label]] += 1
-
-        return cm, classes
-
     def plot_bar_metric(train_value, val_value, title, ylabel):
         """
-        Plots a bar chart comparing train and validation metrics.
+        Plot a bar chart comparing training and validation metrics.
+
+        Args:
+            train_value: Metric value for the training split.
+            val_value: Metric value for the validation split.
+            title: Plot title.
+            ylabel: Label for the y-axis.
         """
         values = [train_value, val_value]
         labels = ["Train", val_name]
@@ -270,7 +266,12 @@ def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "e
 
     def plot_confusion_matrix(cm, classes, title):
         """
-        Plots a single multiclass confusion matrix.
+        Plot a single multiclass confusion matrix.
+
+        Args:
+            cm: Confusion matrix values.
+            classes: Class labels represented in the matrix.
+            title: Plot title.
         """
         if dataset_name == "emnist_bymerge":
             ticks = EMNIST_CLASSES
@@ -298,8 +299,8 @@ def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "e
     y_val = normalize_targets(y_val)
 
     # Generate predictions
-    y_train_pred = predict_classes(X_train)
-    y_val_pred = predict_classes(X_val)
+    y_train_pred = get_predictions(model, X_train, device)
+    y_val_pred = get_predictions(model, X_val, device)
 
     # Compute overall accuracy
     train_accuracy = compute_accuracy(y_train, y_train_pred)
@@ -325,7 +326,15 @@ def evaluate_model(model, X_train, y_train, X_val, y_val, dataset_name: str = "e
 
 def compare_models(models: list, model_names: list[str] = None):
     """
-    Prints and returns a comparison table for trained models.
+    Build and print a comparison table for trained models.
+
+    Args:
+        models (list): Trained models with stored loss histories.
+        model_names (list[str], optional): Names used to identify each model.
+            Defaults to None.
+
+    Returns:
+        pd.DataFrame: Comparison table sorted by best validation loss.
     """
 
     rows = []

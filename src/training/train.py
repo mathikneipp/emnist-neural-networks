@@ -5,6 +5,19 @@ from copy import deepcopy
 
 
 def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[list]:
+    """
+    Run one training epoch over the dataloader.
+
+    Args:
+        dataloader: Iterable of training batches.
+        model: Model to optimize.
+        loss_fn: Loss function used for optimization.
+        optimizer: Optimizer used to update model parameters.
+        device: Device where computations are performed.
+
+    Returns:
+        tuple[list]: Batch loss values collected during the epoch.
+    """
     model.train()
     losses = []
 
@@ -22,6 +35,18 @@ def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[list]:
 
 
 def test_loop(dataloader, model, loss_fn, device) -> tuple[float, list]:
+    """
+    Evaluate a model over the validation or test dataloader.
+
+    Args:
+        dataloader: Iterable of evaluation batches.
+        model: Model to evaluate.
+        loss_fn: Loss function used for evaluation.
+        device: Device where computations are performed.
+
+    Returns:
+        tuple[float, list]: Mean loss and per-batch loss values.
+    """
     model.eval()
 
     num_batches = len(dataloader)
@@ -52,6 +77,23 @@ def train_and_eval(
     early_stopping,
     scheduling,
 ) -> tuple[list, list]:
+    """
+    Train a PyTorch model and track training and validation history.
+
+    Args:
+        train_loader: Dataloader for the training split.
+        val_loader: Dataloader for the validation split.
+        model: Model to train.
+        loss_fn: Loss function used for optimization and evaluation.
+        optimizer: Optimizer used to update model parameters.
+        device: Device where computations are performed.
+        epochs: Maximum number of training epochs.
+        early_stopping: Number of epochs without improvement before stopping.
+        scheduling: Optional learning rate scheduling configuration.
+
+    Returns:
+        tuple[list, list]: Training loss history, validation loss history, and best epoch.
+    """
     model = model.to(device)
 
     best_val_loss = np.inf
