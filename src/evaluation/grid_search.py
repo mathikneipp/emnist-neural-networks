@@ -28,6 +28,24 @@ def random_grid_search_custom(
     possible_configs,
     early_stopping,
 ):
+    """
+    Train multiple custom neural networks using random hyperparameter sampling.
+
+    Args:
+        input_dim: Number of input features.
+        output_dim: Number of output classes.
+        X_train: Training input samples.
+        y_train: Training target labels.
+        X_val: Validation input samples.
+        y_val: Validation target labels.
+        epochs: Maximum number of training epochs per model.
+        K_models: Number of random configurations to evaluate.
+        possible_configs: Search space for each hyperparameter.
+        early_stopping: Early stopping patience used during training.
+
+    Returns:
+        tuple: Trained models and their sampled configurations.
+    """
     models = []
     model_config = defaultdict(dict)
 
@@ -68,7 +86,12 @@ def random_grid_search_custom(
         # Neural Network
         models.append(
             SecuentialNeuralNetwork(
-                layers, ADAM(scheduling=model_config[i]["scheduling"]), CrossEntropy()
+                layers,
+                ADAM(
+                    learning_rate=model_config[i]["lr"],
+                    scheduling=model_config[i]["scheduling"],
+                ),
+                CrossEntropy(model_config[i]["label_smoothing"]),
             )
         )
 
@@ -99,6 +122,23 @@ def random_grid_search_torch(
     early_stopping,
     device,
 ):
+    """
+    Train multiple PyTorch MLP models using random hyperparameter sampling.
+
+    Args:
+        input_dim: Number of input features.
+        output_dim: Number of output classes.
+        train_dataset: Training dataset.
+        val_dataset: Validation dataset.
+        epochs: Maximum number of training epochs per model.
+        K_models: Number of random configurations to evaluate.
+        possible_configs: Search space for each hyperparameter.
+        early_stopping: Early stopping patience used during training.
+        device: Device used to train the models.
+
+    Returns:
+        tuple: Trained models and their sampled configurations.
+    """
     models = []
     model_config = defaultdict(dict)
 
@@ -107,8 +147,18 @@ def random_grid_search_torch(
     for i in tqdm(range(K_models)):
         print("\nModel:", i)
 
-        for k, v in possible_configs.items():
-            model_config[i][k] = rgen.choice(v)
+        for _ in range(10):
+            new_config = defaultdict()
+            for k, v in possible_configs.items():
+                new_config[k] = rgen.choice(v)
+
+            if new_config not in models:
+                model_config[i] = new_config
+                break
+
+        # No new model found
+        if len(model_config) < i + 1:
+            break
 
         print("Config:", model_config[i], end=2 * "\n")
 
@@ -121,10 +171,14 @@ def random_grid_search_torch(
         )
 
         optimizer = model_config[i]["optimizer"](
-            model.parameters(), weight_decay=model_config[i]["l2"]
+            model.parameters(),
+            lr=model_config[i]["lr"],
+            weight_decay=model_config[i]["l2"],
         )
 
-        loss_fn = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss(
+            label_smoothing=model_config[i]["label_smoothing"]
+        )
 
         train_loader = DataLoader(
             train_dataset, batch_size=model_config[i]["batch_size"], shuffle=True
@@ -136,7 +190,7 @@ def random_grid_search_torch(
 
         model.to(device)
 
-        _, _ = train_and_eval(
+        _, _, _ = train_and_eval(
             train_loader,
             val_loader,
             model,
@@ -146,7 +200,6 @@ def random_grid_search_torch(
             epochs=epochs,
             early_stopping=early_stopping,
             scheduling=model_config[i]["scheduling"],
-            lr_0=0.001,
         )
 
         models.append(model)

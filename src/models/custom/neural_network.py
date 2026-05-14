@@ -10,9 +10,21 @@ from ...utils.preprocessing import get_batches
 
 
 class SecuentialNeuralNetwork:
+    """
+    Sequential neural network built from custom dense layers.
+    """
+
     def __init__(
         self, layers: list[DenseLayer], optimizer: Optimizer, loss_function: Loss
     ):
+        """
+        Initialize the neural network with its layers, optimizer, and loss function.
+
+        Args:
+            layers (list[DenseLayer]): Ordered list of network layers.
+            optimizer (Optimizer): Optimizer used to update the model parameters.
+            loss_function (Loss): Loss function used during training.
+        """
         self.layers = layers
         self.loss_function = loss_function
         self.optimizer = optimizer
@@ -29,13 +41,33 @@ class SecuentialNeuralNetwork:
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         early_stopping: int | None = 5,
-    ):
+        epsilon: float = 1e-3,
+    ) -> int:
+        """
+        Train the neural network using mini-batch gradient-based optimization.
+
+        Args:
+            X (np.ndarray): Training input samples.
+            y (np.ndarray): Training target labels.
+            epochs (int): Maximum number of training epochs.
+            batch_size (int | None): Number of samples per batch. If `None`, uses full-batch training.
+            X_val (np.ndarray | None, optional): Validation input samples. Defaults to None.
+            y_val (np.ndarray | None, optional): Validation target labels. Defaults to None.
+            early_stopping (int | None, optional): Number of epochs to wait for validation
+                improvement before stopping. Defaults to 5.
+            epsilon (float): Minimum improvement in validation loss required to reset early stopping
+                patience. Defaults to 1e-3.
+
+        Returns:
+            int: Number of epochs effectively completed or the best epoch when early stopping is used.
+        """
         indices = np.arange(y.size)
 
         # Early stopping settings
         wait = 0
         best_val_loss = np.inf
         best_layers = None
+        best_epoch = None
 
         # tqdm bar
         bar = tqdm(range(epochs), desc="Training", unit="ep")
@@ -75,10 +107,11 @@ class SecuentialNeuralNetwork:
 
                 # Early stopping
                 if early_stopping is not None:
-                    if val_loss < best_val_loss:
+                    if val_loss + epsilon < best_val_loss:
                         best_val_loss = val_loss
                         wait = 0
                         best_layers = deepcopy(self.layers)
+                        best_epoch = epoch
 
                     else:
                         wait += 1
@@ -87,10 +120,26 @@ class SecuentialNeuralNetwork:
                             print(f"Early stopping after epoch: {epoch}")
                             break
 
+            self.optimizer.scheduling_step(epoch)
+
         if best_layers is not None:
             self.layers = best_layers
 
+        if best_epoch is None:
+            return epoch + 1
+
+        return best_epoch + 1
+
     def predict(self, X: np.ndarray):
+        """
+        Generate predictions for the provided input samples.
+
+        Args:
+            X (np.ndarray): Input samples to evaluate.
+
+        Returns:
+            np.ndarray: Network output predictions.
+        """
         return self._forward_pass(X, training=False)
 
     @classmethod
@@ -104,9 +153,24 @@ class SecuentialNeuralNetwork:
         optimizer,
         loss,
     ):
+        """
+        Build a neural network instance from a configuration dictionary.
+
+        Args:
+            input_dim (_type_): Number of input features.
+            output_dim (_type_): Number of output units.
+            activation (_type_): Activation class or factory used in hidden layers.
+            output_activation (_type_): Activation class or factory used in the output layer.
+            config (dict): Model and optimization hyperparameter configuration.
+            optimizer (_type_): Optimizer instance or optimizer class to instantiate.
+            loss (_type_): Loss instance or loss class to instantiate.
+
+        Returns:
+            _type_: Configured neural network instance.
+        """
         layers = []
         last_dim = input_dim
-        
+
         # Hidden layers
         for next_dim in config["layers"]:
             layers.append(
@@ -128,16 +192,46 @@ class SecuentialNeuralNetwork:
                 l2_regularization=config["l2"],
             )
         )
-        
-        return cls(layers=layers, optimizer=optimizer, loss_function=loss)
+
+        optimizer_instance = optimizer(
+            learning_rate=config["lr"], scheduling=config["scheduling"]
+        )
+
+        loss_instance = (
+            loss(config["label_smoothing"]) if isinstance(loss, type) else loss
+        )
+
+        return cls(
+            layers=layers,
+            optimizer=optimizer_instance,
+            loss_function=loss_instance,
+        )
 
     def _forward_pass(self, X, training: bool = True) -> np.ndarray:
+        """
+        Run a forward pass through all network layers.
+
+        Args:
+            X (_type_): Input batch.
+            training (bool, optional): Whether to store intermediate activations for backpropagation.
+                Defaults to True.
+
+        Returns:
+            np.ndarray: Network output for the input batch.
+        """
         z_l = X
         for layer in self.layers:
             z_l = layer.forward(z_l, training)
         return z_l
 
     def _backward_pass(self, y: np.ndarray, y_pred: np.ndarray) -> None:
+        """
+        Run backpropagation and store gradients for every layer.
+
+        Args:
+            y (np.ndarray): Ground-truth labels for the current batch.
+            y_pred (np.ndarray): Predicted outputs for the current batch.
+        """
         last_layer = self.layers[-1]
 
         delta_l = self.loss_function.grad(y, y_pred)
