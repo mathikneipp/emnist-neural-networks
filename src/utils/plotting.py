@@ -457,7 +457,7 @@ def plot_model_metric_comparison(
     )
     ax.set_ylabel("Score", fontsize=12)
     ax.set_xticks(x)
-    ax.set_xticklabels(results_df["model"], rotation=20, ha="right")
+    ax.set_xticklabels(results_df["model"], ha="right")
     ax.set_ylim(
         0, min(1.08, results_df[["accuracy", "f1_score"]].to_numpy().max() + 0.12)
     )
@@ -467,8 +467,8 @@ def plot_model_metric_comparison(
 
     best_model = results_df.iloc[0]
     ax.text(
-        0.99,
-        1.02,
+        1.,
+        1.,
         (f"Best by {sort_by}: {best_model['model']} " f"({best_model[sort_by]:.4f})"),
         transform=ax.transAxes,
         ha="right",
@@ -521,5 +521,4 @@ def compare_models(models: list, model_names: list[str] = None):
         .reset_index(drop=True)
     )
 
-    print(df.to_string(index=False))
     return df
