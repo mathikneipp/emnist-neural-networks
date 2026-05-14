@@ -141,16 +141,16 @@ def random_grid_search_torch(
 
     for i in tqdm(range(K_models)):
         print("\nModel:", i)
-        
+
         for _ in range(10):
             new_config = defaultdict()
             for k, v in possible_configs.items():
                 new_config[k] = rgen.choice(v)
-            
+
             if new_config not in models:
                 model_config[i] = new_config
                 break
-        
+
         # No new model found
         if len(model_config) < i + 1:
             break
@@ -166,10 +166,14 @@ def random_grid_search_torch(
         )
 
         optimizer = model_config[i]["optimizer"](
-            model.parameters(), weight_decay=model_config[i]["l2"]
+            model.parameters(),
+            lr=model_config[i]["lr"],
+            weight_decay=model_config[i]["l2"],
         )
 
-        loss_fn = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss(
+            label_smoothing=model_config[i]["label_smoothing"]
+        )
 
         train_loader = DataLoader(
             train_dataset, batch_size=model_config[i]["batch_size"], shuffle=True
@@ -190,7 +194,7 @@ def random_grid_search_torch(
             device,
             epochs=epochs,
             early_stopping=early_stopping,
-            scheduling=model_config[i]["scheduling"]
+            scheduling=model_config[i]["scheduling"],
         )
 
         models.append(model)
