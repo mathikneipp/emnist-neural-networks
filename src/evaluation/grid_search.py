@@ -86,7 +86,7 @@ def random_grid_search_custom(
         # Neural Network
         models.append(
             SecuentialNeuralNetwork(
-                layers, ADAM(scheduling=model_config[i]["scheduling"]), CrossEntropy()
+                layers, ADAM(scheduling=model_config[i]["scheduling"]), CrossEntropy(model_config[i]["label_smoothing"])
             )
         )
 
