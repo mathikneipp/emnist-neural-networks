@@ -178,7 +178,7 @@ def random_grid_search_torch(
             output_dim,
             dropout=model_config[i]["dropout"],
             activation=model_config[i]["activation"],
-            batch_norm=model_config[i]["batch_norm"]
+            batch_norm=model_config[i]["batch_norm"],
         )
 
         optimizer = model_config[i]["optimizer"](
@@ -192,7 +192,10 @@ def random_grid_search_torch(
         )
 
         train_loader = DataLoader(
-            train_dataset, batch_size=model_config[i]["batch_size"], shuffle=True
+            train_dataset,
+            batch_size=model_config[i]["batch_size"],
+            shuffle=True,
+            drop_last=True,
         )
 
         val_loader = DataLoader(
