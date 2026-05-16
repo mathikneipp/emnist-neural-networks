@@ -256,11 +256,12 @@ def evaluate_model(
         device (optional): Device used for PyTorch-based models. Defaults to None.
     """
 
-    def plot_bar_metric(train_value, val_value, title, ylabel):
+    def plot_bar_metric(ax, train_value, val_value, title, ylabel):
         """
-        Plot a bar chart comparing training and validation metrics.
+        Plot a bar chart comparing training and validation metrics on a given axis.
 
         Args:
+            ax: Matplotlib axis where the plot is drawn.
             train_value: Metric value for the training split.
             val_value: Metric value for the validation split.
             title: Plot title.
@@ -269,19 +270,17 @@ def evaluate_model(
         values = [train_value, val_value]
         labels = ["Train", val_name]
 
-        plt.figure(figsize=(6.5, 5))
+        bars = ax.bar(labels, values, color=["#1f77b4", "#d62728"], width=0.6)
 
-        bars = plt.bar(labels, values, color=["#1f77b4", "#d62728"], width=0.6)
+        ax.set_ylim(0, 1)
 
-        plt.ylim(0, 1)
+        ax.set_title(title, fontsize=15, fontweight="bold")
+        ax.set_ylabel(ylabel, fontsize=12)
 
-        plt.title(title, fontsize=15, fontweight="bold")
-        plt.ylabel(ylabel, fontsize=12)
-
-        plt.grid(axis="y", linestyle="--", alpha=0.35)
+        ax.grid(axis="y", linestyle="--", alpha=0.35)
 
         for bar, value in zip(bars, values):
-            plt.text(
+            ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 value + 0.02,
                 f"{value:.4f}",
@@ -290,42 +289,45 @@ def evaluate_model(
                 fontweight="bold",
             )
 
-        plt.tight_layout()
-        plt.show()
-
-    def plot_confusion_matrix(cm, classes, title):
+    def plot_confusion_matrix(ax, cm, classes, title):
         """
-        Plot a single multiclass confusion matrix.
+        Plot a single multiclass confusion matrix on a given axis.
 
         Args:
+            ax: Matplotlib axis where the plot is drawn.
             cm: Confusion matrix values.
             classes: Class labels represented in the matrix.
             title: Plot title.
         """
+        ticks = None
         if dataset_name == "emnist_bymerge":
-            ticks = EMNIST_CLASSES
-        plt.figure(figsize=(8.5, 7))
-        plt.imshow(cm, cmap="Blues")
-        plt.title(title, fontsize=16, fontweight="bold")
-        plt.xlabel("Predicted", fontsize=12)
-        plt.ylabel("True", fontsize=12)
+            ticks = EMNIST_CLASSES[: len(classes)]
+
+        image = ax.imshow(cm, cmap="Blues")
+        ax.set_title(title, fontsize=16, fontweight="bold")
+        ax.set_xlabel("Predicted", fontsize=12)
+        ax.set_ylabel("True", fontsize=12)
+
         if ticks:
             tick_positions = np.arange(len(classes))
-
-            plt.xticks(tick_positions, ticks)
-            plt.yticks(tick_positions, ticks)
-
+            ax.set_xticks(tick_positions)
+            ax.set_yticks(tick_positions)
+            ax.set_xticklabels(ticks)
+            ax.set_yticklabels(ticks)
         else:
-            plt.xticks(np.arange(len(classes)), classes)
-            plt.yticks(np.arange(len(classes)), classes)
+            ax.set_xticks(np.arange(len(classes)))
+            ax.set_yticks(np.arange(len(classes)))
+            ax.set_xticklabels(classes)
+            ax.set_yticklabels(classes)
 
-        plt.colorbar()
-
-        plt.tight_layout()
-        plt.show()
+        return image
 
     y_train = _normalize_targets(y_train)
     y_val = _normalize_targets(y_val)
+
+    metric_classes = None
+    if dataset_name == "emnist_bymerge":
+        metric_classes = np.arange(len(EMNIST_CLASSES))
 
     # Generate predictions
     y_train_pred = get_predictions(model, X_train, device)
@@ -336,21 +338,40 @@ def evaluate_model(
     val_accuracy = compute_accuracy(y_val, y_val_pred)
 
     # Compute one-vs-all macro F1
-    train_f1, _ = compute_macro_f1_ova(y_train, y_train_pred)
-    val_f1, _ = compute_macro_f1_ova(y_val, y_val_pred)
+    train_f1, _ = compute_macro_f1_ova(
+        y_train, y_train_pred, classes=metric_classes
+    )
+    val_f1, _ = compute_macro_f1_ova(y_val, y_val_pred, classes=metric_classes)
 
     # Compute multiclass confusion matrices
     train_cm, train_classes = compute_multiclass_confusion_matrix(y_train, y_train_pred)
     val_cm, val_classes = compute_multiclass_confusion_matrix(y_val, y_val_pred)
 
-    # Plot all metrics
-    plot_bar_metric(train_accuracy, val_accuracy, "Overall Accuracy", "Accuracy")
+    # Plot all metrics in a 2x2 grid
+    fig, axes = plt.subplots(
+        2,
+        2,
+        figsize=(18, 14),
+        gridspec_kw={"height_ratios": [1, 1.8]},
+    )
 
-    plot_bar_metric(train_f1, val_f1, "Macro F1-Score", "F1-Score")
+    plot_bar_metric(
+        axes[0, 0], train_accuracy, val_accuracy, "Overall Accuracy", "Accuracy"
+    )
+    plot_bar_metric(axes[0, 1], train_f1, val_f1, "Macro F1-Score", "F1-Score")
 
-    plot_confusion_matrix(train_cm, train_classes, "Train Confusion Matrix")
+    train_image = plot_confusion_matrix(
+        axes[1, 0], train_cm, train_classes, "Train Confusion Matrix"
+    )
+    val_image = plot_confusion_matrix(
+        axes[1, 1], val_cm, val_classes, f"{val_name} Confusion Matrix"
+    )
 
-    plot_confusion_matrix(val_cm, val_classes, f"{val_name} Confusion Matrix")
+    fig.colorbar(train_image, ax=axes[1, 0], fraction=0.046, pad=0.04)
+    fig.colorbar(val_image, ax=axes[1, 1], fraction=0.046, pad=0.04)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_model_metric_comparison(
@@ -381,6 +402,10 @@ def plot_model_metric_comparison(
         raise ValueError("sort_by debe ser 'accuracy' o 'f1_score'")
 
     y = _normalize_targets(y)
+    metric_classes = None
+
+    if split_name.lower() == "test":
+        metric_classes = np.arange(len(EMNIST_CLASSES))
 
     if isinstance(models, dict):
         model_items = list(models.items())
@@ -396,7 +421,7 @@ def plot_model_metric_comparison(
     for model_name, model in model_items:
         y_pred = get_predictions(model, X, device)
         accuracy = compute_accuracy(y, y_pred)
-        f1_score, _ = compute_macro_f1_ova(y, y_pred)
+        f1_score, _ = compute_macro_f1_ova(y, y_pred, classes=metric_classes)
 
         rows.append(
             {
@@ -467,8 +492,8 @@ def plot_model_metric_comparison(
 
     best_model = results_df.iloc[0]
     ax.text(
-        1.,
-        1.,
+        1.0,
+        1.0,
         (f"Best by {sort_by}: {best_model['model']} " f"({best_model[sort_by]:.4f})"),
         transform=ax.transAxes,
         ha="right",

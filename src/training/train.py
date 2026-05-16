@@ -3,8 +3,10 @@ from tqdm import tqdm
 import numpy as np
 from copy import deepcopy
 
+from ..utils.utils import get_scheduler
 
-def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[list]:
+
+def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[float, list]:
     """
     Run one training epoch over the dataloader.
 
@@ -16,9 +18,11 @@ def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[list]:
         device: Device where computations are performed.
 
     Returns:
-        tuple[list]: Batch loss values collected during the epoch.
+        tuple[float, list]: Mean training loss over the epoch and per-batch loss values.
     """
     model.train()
+    loss = 0.0
+    total_samples = 0
     losses = []
 
     for X, y in dataloader:
@@ -27,11 +31,15 @@ def train_loop(dataloader, model, loss_fn, optimizer, device) -> tuple[list]:
 
         y_pred = model(X)  # Forward pass
         batch_loss = loss_fn(y_pred, y)  # Loss eval
-        losses.append(batch_loss.item())
+        batch_loss_value = batch_loss.item()
+        batch_size = y.shape[0]
+        loss += batch_loss_value * batch_size
+        total_samples += batch_size
+        losses.append(batch_loss_value)
         batch_loss.backward()  # Backward pass
         optimizer.step()  # Step
 
-    return losses
+    return loss / total_samples, losses
 
 
 def test_loop(dataloader, model, loss_fn, device) -> tuple[float, list]:
@@ -49,8 +57,8 @@ def test_loop(dataloader, model, loss_fn, device) -> tuple[float, list]:
     """
     model.eval()
 
-    num_batches = len(dataloader)
     loss = 0.0
+    total_samples = 0
 
     losses = []
 
@@ -60,10 +68,12 @@ def test_loop(dataloader, model, loss_fn, device) -> tuple[float, list]:
 
             y_pred = model(X)  # Forward pass
             batch_loss = loss_fn(y_pred, y).item()  # Loss eval
-            loss += batch_loss
+            batch_size = y.shape[0]
+            loss += batch_loss * batch_size
+            total_samples += batch_size
             losses.append(batch_loss)
 
-    return loss / num_batches, losses
+    return loss / total_samples, losses
 
 
 def train_and_eval(
@@ -108,28 +118,20 @@ def train_and_eval(
     batch_val_losses = []
 
     counter = 0
-    scheduler = None
     best_epoch = 0
 
-    if scheduling is not None:
-        if scheduling["type"] == "linear":
-            lr_0 = optimizer.param_groups[0]["lr"]
-            lr_lambda = lambda epoch: max(
-                scheduling["lr_min"] / lr_0, 1 - (scheduling["k"] / lr_0) * epoch
-            )
-        elif scheduling["type"] == "exponential":
-            lr_lambda = lambda epoch: scheduling["gamma"] ** epoch
-
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+    scheduler = get_scheduler(scheduling, optimizer)
 
     for t in tqdm(range(epochs)):
 
-        train_losses = train_loop(train_loader, model, loss_fn, optimizer, device)
+        train_loss, train_losses = train_loop(
+            train_loader, model, loss_fn, optimizer, device
+        )
         val_loss, val_losses = test_loop(val_loader, model, loss_fn, device)
 
         batch_train_losses.extend(train_losses)
         batch_val_losses.extend(val_losses)
-        epoch_train_losses.append(float(np.mean(train_losses)))
+        epoch_train_losses.append(float(train_loss))
         epoch_val_losses.append(float(val_loss))
 
         if val_loss + epsilon < best_val_loss:

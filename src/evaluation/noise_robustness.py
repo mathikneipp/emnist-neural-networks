@@ -44,6 +44,7 @@ def evaluate_noise_robustness(
         pd.DataFrame: Table with accuracy and macro F1-score for each model and noise level.
     """
     results = []
+    metric_classes = np.arange(int(np.max(y_test)) + 1)
 
     for model_name, model in models.items():
 
@@ -54,7 +55,9 @@ def evaluate_noise_robustness(
                 "model": model_name,
                 "noise_level": 0.0,
                 "accuracy": compute_accuracy(y_test, y_pred_clean),
-                "f1_score": compute_macro_f1_ova(y_test, y_pred_clean)[0],
+                "f1_score": compute_macro_f1_ova(
+                    y_test, y_pred_clean, classes=metric_classes
+                )[0],
             }
         )
 
@@ -68,7 +71,9 @@ def evaluate_noise_robustness(
                     "model": model_name,
                     "noise_level": sigma,
                     "accuracy": compute_accuracy(y_test, y_pred),
-                    "f1_score": compute_macro_f1_ova(y_test, y_pred)[0],
+                    "f1_score": compute_macro_f1_ova(
+                        y_test, y_pred, classes=metric_classes
+                    )[0],
                 }
             )
 

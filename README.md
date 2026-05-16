@@ -1,12 +1,16 @@
-# Trabajo Práctico 3 - Machine Learning & Deep Learning (UdeSA)
+# Trabajo Práctico 3 - Machine Learning & Deep Learning
 
-Este repositorio contiene la implementación del Trabajo Práctico 3 de la materia *Machine Learning & Deep Learning* de UdeSA. El proyecto estudia clasificación multiclase sobre el dataset **EMNIST ByMerge**, comparando una red neuronal implementada desde cero con variantes construidas en **PyTorch**, además de evaluar búsqueda de hiperparámetros, regularización y robustez frente a ruido.
+Este repositorio contiene la resolución del Trabajo Práctico 3 de la materia *Machine Learning & Deep Learning* de UdeSA. El objetivo es resolver un problema de clasificación multiclase sobre **EMNIST ByMerge** y comparar dos enfoques:
 
-## Estructura
+- una red neuronal implementada desde cero con `NumPy`
+- una versión equivalente construida con `PyTorch`
+
+Además del entrenamiento base, el proyecto incluye búsqueda aleatoria de hiperparámetros, métricas de evaluación, visualizaciones y un análisis de robustez frente a ruido gaussiano.
+
+## Estructura del proyecto
 
 ```text
-emnist-neural-networks
-|
+Kneipp_Mathias_TP3/
 ├── data/
 │   ├── X_images.npy
 │   └── y_images.npy
@@ -39,44 +43,33 @@ emnist-neural-networks
 └── README.md
 ```
 
-### Descripción de carpetas y archivos
+## Descripción de carpetas
 
-- `data/`: contiene los arreglos `NumPy` con las imágenes y etiquetas del dataset.
-- `doc/`: incluye el enunciado del trabajo práctico.
-- `notebooks/Entrega_TP3.ipynb`: notebook principal donde se ejecuta el flujo completo del TP, desde carga de datos hasta evaluación final.
-- `src/models/custom/`: implementación propia de la red neuronal, capas densas, funciones de activación, función de pérdida y optimizadores.
-- `src/models/torch/`: implementación del perceptrón multicapa equivalente usando PyTorch.
-- `src/training/`: loops de entrenamiento y validación para modelos PyTorch.
-- `src/evaluation/`: métricas, predicciones, búsqueda aleatoria de hiperparámetros y evaluación de robustez ante ruido gaussiano.
-- `src/utils/`: utilidades de preprocesamiento, selección de configuraciones y visualización de resultados.
+- `data/`: archivos `NumPy` con imágenes y etiquetas.
+- `doc/`: enunciado del trabajo práctico.
+- `notebooks/Entrega_TP3.ipynb`: notebook principal de la entrega.
+- `src/models/custom/`: implementación propia de la red neuronal, activaciones, capas, pérdida y optimizador.
+- `src/models/torch/`: implementación del MLP en `PyTorch`.
+- `src/training/`: loops de entrenamiento y validación para modelos `PyTorch`.
+- `src/evaluation/`: métricas, predicciones, búsqueda aleatoria y robustez frente a ruido.
+- `src/utils/`: preprocesamiento, selección de configuraciones y visualización.
 
-## Características Principales
+## Funcionalidades principales
 
-- Implementación de una red neuronal secuencial desde cero con `NumPy`.
-- Implementación equivalente de un MLP con `PyTorch`.
-- Entrenamiento con:
-  - gradient descent
-  - mini-batch training
-  - optimizador `ADAM`
-  - early stopping
-  - learning rate scheduling lineal y exponencial
-  - regularización L2
-  - label smoothing
-- Búsqueda aleatoria de hiperparámetros para modelos custom y PyTorch.
-- Evaluación con métricas de clasificación multiclase:
-  - accuracy
-  - macro F1 one-vs-all
-  - matriz de confusión
-- Análisis de robustez frente a ruido gaussiano en el conjunto de test.
-- Visualización de curvas de entrenamiento, comparación de modelos e inspección de imágenes del dataset.
+- Red neuronal secuencial implementada desde cero con `NumPy`.
+- MLP equivalente implementado con `PyTorch`.
+- Entrenamiento con mini-batches, `ADAM`, early stopping y learning rate scheduling.
+- Regularización L2 y label smoothing.
+- Búsqueda aleatoria de hiperparámetros para modelos custom y `PyTorch`.
+- Evaluación con accuracy, macro F1 one-vs-all y matriz de confusión.
+- Análisis de robustez ante ruido gaussiano.
+- Visualizaciones de imágenes, curvas de entrenamiento y comparación de modelos.
 
-## Requisitos e Instalación
+## Requisitos
 
-### Requisitos
-
-- Python 3.11 o superior recomendado
+- Python 3.11 o superior
 - `pip`
-- Jupyter Notebook o JupyterLab para ejecutar la entrega
+- Jupyter Notebook o JupyterLab
 
 Dependencias principales:
 
@@ -88,85 +81,73 @@ Dependencias principales:
 - `tqdm`
 - `torch`
 
-### Instalación
-
-1. Clonar el repositorio:
+## Instalación
 
 ```bash
 git clone <URL_DEL_REPOSITORIO>
-cd emnist-neural-networks
-```
-
-2. Crear y activar un entorno virtual:
-
-```bash
+cd Kneipp_Mathias_TP3
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-3. Instalar dependencias:
-
-```bash
 pip install -r requirements.txt
 ```
 
-### Datos
+## Datos
 
-El proyecto espera encontrar los siguientes archivos dentro de `data/`:
+El proyecto espera encontrar estos archivos dentro de `data/`:
 
 - `data/X_images.npy`
 - `data/y_images.npy`
 
-Por cuestiones de tamaño, el dataset **no fue subido a GitHub** junto con el repositorio. Para ejecutar la notebook o reutilizar los módulos, es necesario contar localmente con esos archivos dentro de la carpeta `data/`.
-
-En esta entrega, el dataset ya está preparado en formato `NumPy`. Las imágenes tienen forma `28x28` y el problema contempla **47 clases** de `EMNIST ByMerge`.
+En esta entrega, el dataset se usa en formato `NumPy`. Las imágenes son de `28x28` píxeles y el problema tiene **47 clases** correspondientes a `EMNIST ByMerge`.
 
 ## Uso
 
 ### Flujo principal
 
-La forma principal de usar el proyecto es abrir y ejecutar la notebook:
+La forma principal de ejecutar el trabajo es abrir la notebook:
 
 ```bash
 jupyter notebook notebooks/Entrega_TP3.ipynb
 ```
 
-La notebook realiza, en orden:
+La notebook recorre el flujo completo:
 
-1. Carga de `X_images.npy` e `y_images.npy`.
-2. Normalización de píxeles al rango `[0, 1]`.
-3. Split de datos en train, validation y test.
-4. Entrenamiento de modelos base y avanzados.
-5. Búsqueda de hiperparámetros.
-6. Evaluación comparativa de performance.
-7. Análisis de robustez con ruido gaussiano.
+1. carga de datos
+2. escalado de píxeles a `[0, 1]`
+3. partición estratificada en train, validation y test
+4. entrenamiento de modelos base
+5. búsqueda de hiperparámetros
+6. evaluación comparativa
+7. análisis de robustez con ruido gaussiano
 
-### Modelos trabajados en la notebook
+### Modelos trabajados
 
-- `M0`: red neuronal básica implementada desde cero, usada como baseline.
-- `M1`: red custom optimizada a partir de búsqueda aleatoria de hiperparámetros.
-- `M2`: versión en PyTorch construida con la mejor configuración de `M1`.
-- `M3`: modelo PyTorch optimizado con búsqueda propia de hiperparámetros.
+- `M0`: baseline custom implementado desde cero.
+- `M1`: modelo custom ajustado con búsqueda aleatoria.
+- `M2`: versión en `PyTorch` basada en la mejor configuración custom.
+- `M3`: modelo `PyTorch` ajustado con búsqueda propia.
 
-### Uso desde módulos de Python
+## Uso desde módulos
 
-Si querés reutilizar componentes fuera de la notebook, podés importar directamente desde `src/`.
-
-Ejemplo de preprocesamiento:
+### Preprocesamiento
 
 ```python
 import numpy as np
-from src.utils.preprocessing import scaler, data_split
+
+from src.utils.preprocessing import scaler, stratified_split
 
 X = np.load("data/X_images.npy")
 y = np.load("data/y_images.npy")
 
 X = scaler(X)
-X_dev, y_dev, X_test, y_test = data_split(X, y, frac=0.8)
-X_train, y_train, X_val, y_val = data_split(X_dev, y_dev, frac=7/9)
+
+X_dev, X_test, y_dev, y_test = stratified_split(X, y, frac=0.8, seed=42)
+X_train, X_val, y_train, y_val = stratified_split(
+    X_dev, y_dev, frac=7/9, seed=42
+)
 ```
 
-Ejemplo de búsqueda aleatoria para el modelo custom:
+### Búsqueda aleatoria para el modelo custom
 
 ```python
 from src.evaluation.grid_search import random_grid_search_custom
@@ -185,8 +166,24 @@ models, configs = random_grid_search_custom(
 )
 ```
 
-### Observaciones
+### Evaluación de un modelo
 
-- El repositorio no expone actualmente una CLI propia; el punto de entrada real es la notebook.
-- Para entrenar los modelos correctamente, las imágenes deben aplanarse antes de ingresar a las capas densas.
-- Algunos experimentos pueden demandar bastante tiempo y memoria si se ejecutan sobre el dataset completo.
+```python
+from src.utils.plotting import evaluate_model
+
+evaluate_model(
+    model=models[0],
+    X_train=X_train.reshape(len(X_train), -1),
+    y_train=y_train,
+    X_val=X_val.reshape(len(X_val), -1),
+    y_val=y_val,
+    dataset_name="emnist_bymerge",
+    val_name="Validation",
+)
+```
+
+## Observaciones
+
+- El punto de entrada principal del proyecto es la notebook; no hay una CLI dedicada.
+- Los modelos densos esperan inputs aplanados al momento de entrenar o evaluar.
+- Algunos experimentos pueden tardar bastante si se ejecutan sobre el dataset completo.

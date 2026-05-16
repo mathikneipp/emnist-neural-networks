@@ -54,8 +54,18 @@ def random_grid_search_custom(
     for i in tqdm(range(K_models)):
         print("\nModel:", i)
 
-        for k, v in possible_configs.items():
-            model_config[i][k] = rgen.choice(v)
+        for _ in range(10):
+            new_config = defaultdict()
+            for k, v in possible_configs.items():
+                new_config[k] = rgen.choice(v)
+
+            if new_config not in list(model_config.values()):
+                model_config[i] = new_config
+                break
+
+        # No new model found
+        if len(model_config) < i + 1:
+            break
 
         print("Config:", model_config[i], end=2 * "\n")
 
@@ -152,7 +162,7 @@ def random_grid_search_torch(
             for k, v in possible_configs.items():
                 new_config[k] = rgen.choice(v)
 
-            if new_config not in models:
+            if new_config not in list(model_config.values()):
                 model_config[i] = new_config
                 break
 
@@ -168,6 +178,7 @@ def random_grid_search_torch(
             output_dim,
             dropout=model_config[i]["dropout"],
             activation=model_config[i]["activation"],
+            batch_norm=model_config[i]["batch_norm"]
         )
 
         optimizer = model_config[i]["optimizer"](

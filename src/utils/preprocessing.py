@@ -15,36 +15,50 @@ def scaler(X):
     return X / 255
 
 
-def data_split(
-    X: np.ndarray, y: np.ndarray, frac: float
+def stratified_split(
+    X: np.ndarray, y: np.ndarray, frac: float = 0.8, seed: int = 42
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Randomly split a dataset into two partitions.
+    Splits a dataset into training and validation sets while preserving
+    class distribution.
+
+    Works for binary and multiclass classification.
 
     Args:
-        X (np.ndarray): Input samples.
+        X (np.ndarray): Feature matrix.
         y (np.ndarray): Target labels.
-        frac (float): Fraction of samples assigned to the first split.
+        frac (float): Fraction of samples per class assigned to training.
+        seed (int): Random seed.
 
     Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: First split inputs and
-            labels followed by second split inputs and labels.
+        tuple: (X_train, X_val, y_train, y_val)
     """
+    rng = np.random.default_rng(seed)
 
-    total_size = y.size
+    train_indices = []
+    val_indices = []
 
-    indices = np.arange(total_size)
-    np.random.shuffle(indices)
+    for cls in np.unique(y):
+        cls_indices = np.where(y == cls)[0]
+        rng.shuffle(cls_indices)
 
-    split_idx = int(total_size * frac)
+        split = int(len(cls_indices) * frac)
 
-    index_1st = indices[:split_idx]
-    index_2nd = indices[split_idx:]
+        train_indices.append(cls_indices[:split])
+        val_indices.append(cls_indices[split:])
 
-    X_1, y_1 = X[index_1st], y[index_1st]
-    X_2, y_2 = X[index_2nd], y[index_2nd]
+    train_indices = np.concatenate(train_indices)
+    val_indices = np.concatenate(val_indices)
 
-    return X_1, y_1, X_2, y_2
+    rng.shuffle(train_indices)
+    rng.shuffle(val_indices)
+
+    return (
+        X[train_indices],
+        X[val_indices],
+        y[train_indices],
+        y[val_indices],
+    )
 
 
 def get_batches(

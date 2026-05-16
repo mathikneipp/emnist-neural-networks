@@ -89,10 +89,10 @@ class SecuentialNeuralNetwork:
                 y_pred = self._forward_pass(batch_X)
 
                 batch_loss = self.loss_function.fn(batch_y, y_pred)
-                batch_size = batch_y.shape[0]
+                batch_size_temp = batch_y.shape[0]
 
-                epoch_loss += batch_loss * batch_size
-                seen += batch_size
+                epoch_loss += batch_loss * batch_size_temp
+                seen += batch_size_temp
 
                 self._backward_pass(batch_y, y_pred)
                 self.optimizer.step(self.layers)
