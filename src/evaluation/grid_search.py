@@ -52,7 +52,6 @@ def random_grid_search_custom(
     rgen = random.Random(42)
 
     for i in tqdm(range(K_models)):
-        print("\nModel:", i)
 
         for _ in range(10):
             new_config = defaultdict()
@@ -66,8 +65,6 @@ def random_grid_search_custom(
         # No new model found
         if len(model_config) < i + 1:
             break
-
-        print("Config:", model_config[i], end=2 * "\n")
 
         # Layers
         layers = []
@@ -114,9 +111,8 @@ def random_grid_search_custom(
             X_val=X_val,
             y_val=y_val,
             early_stopping=early_stopping,
+            grid_search=True,
         )
-
-        print()
 
     return models, model_config
 
@@ -155,7 +151,6 @@ def random_grid_search_torch(
     rgen = random.Random(42)
 
     for i in tqdm(range(K_models)):
-        print("\nModel:", i)
 
         for _ in range(10):
             new_config = defaultdict()
@@ -169,8 +164,6 @@ def random_grid_search_torch(
         # No new model found
         if len(model_config) < i + 1:
             break
-
-        print("Config:", model_config[i], end=2 * "\n")
 
         model = MLP(
             input_dim,
@@ -214,6 +207,7 @@ def random_grid_search_torch(
             epochs=epochs,
             early_stopping=early_stopping,
             scheduling=model_config[i]["scheduling"],
+            grid_search=True,
         )
 
         models.append(model)

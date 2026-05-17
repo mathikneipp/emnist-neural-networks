@@ -42,6 +42,7 @@ class SecuentialNeuralNetwork:
         y_val: np.ndarray | None = None,
         early_stopping: int | None = 5,
         epsilon: float = 1e-3,
+        grid_search: bool = False,
     ) -> int:
         """
         Train the neural network using mini-batch gradient-based optimization.
@@ -70,9 +71,13 @@ class SecuentialNeuralNetwork:
         best_epoch = None
 
         # tqdm bar
-        bar = tqdm(range(epochs), desc="Training", unit="ep")
+        iter = (
+            range(epochs)
+            if grid_search
+            else tqdm(range(epochs), desc="Training", unit="ep")
+        )
 
-        for epoch in bar:
+        for epoch in iter:
             # Data shuffle
             np.random.shuffle(indices)
             X, y = X[indices], y[indices]
@@ -117,7 +122,8 @@ class SecuentialNeuralNetwork:
                         wait += 1
 
                         if wait >= early_stopping:
-                            print(f"Early stopping after epoch: {epoch}")
+                            if not grid_search: 
+                                print(f"Early stopping after epoch: {epoch}")
                             break
 
             self.optimizer.scheduling_step(epoch)

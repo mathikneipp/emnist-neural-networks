@@ -87,6 +87,7 @@ def train_and_eval(
     early_stopping,
     scheduling,
     epsilon: float = 1e-3,
+    grid_search: bool = False
 ) -> tuple[list, list]:
     """
     Train a PyTorch model and track training and validation history.
@@ -122,7 +123,9 @@ def train_and_eval(
 
     scheduler = get_scheduler(scheduling, optimizer)
 
-    for t in tqdm(range(epochs)):
+    iter = range(epochs) if grid_search else tqdm(range(epochs))
+    
+    for t in iter:
 
         train_loss, train_losses = train_loop(
             train_loader, model, loss_fn, optimizer, device
@@ -144,7 +147,8 @@ def train_and_eval(
 
         # Early stopping
         if counter >= early_stopping:
-            print(f"Early stopping after epoch: {t}")
+            if not grid_search: 
+                print(f"Early stopping after epoch: {t}")
             break
 
         if scheduler is not None:

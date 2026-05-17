@@ -94,14 +94,68 @@ def _normalize_targets(y):
     return y
 
 
+def _advance_fig_num(fig_num):
+    """
+    Advance the figure number in place when numbering is enabled.
+
+    Args:
+        fig_num: Mutable container with the current figure number, or None.
+    """
+    if fig_num is None:
+        return
+    if not isinstance(fig_num, list) or len(fig_num) != 1:
+        raise ValueError("fig_num debe ser None o una lista con un único entero, por ejemplo [1]")
+    fig_num[0] += 1
+
+
+def _current_fig_num(fig_num):
+    """
+    Return the current figure number from a mutable container.
+
+    Args:
+        fig_num: Mutable container with the current figure number, or None.
+
+    Returns:
+        int | None: Current figure number if enabled.
+    """
+    if fig_num is None:
+        return None
+    if not isinstance(fig_num, list) or len(fig_num) != 1:
+        raise ValueError("fig_num debe ser None o una lista con un único entero, por ejemplo [1]")
+    return fig_num[0]
+
+
+def _annotate_figure_number(fig, fig_num) -> None:
+    """
+    Draw the figure number inside the rendered plot.
+
+    Args:
+        fig: Matplotlib figure.
+        fig_num: Current figure number or None.
+    """
+    if fig_num is None:
+        return
+    fig.text(
+        0.015,
+        0.985,
+        f"Figura {fig_num}",
+        ha="left",
+        va="top",
+        fontsize=11,
+        fontweight="bold",
+        color="#444444",
+    )
+
+
 def plot_random_images(
-    images, seed=42, n=4, figsize=(8, 8), cmap=None, image_shape=None
+    images, fig_num=None, seed=42, n=4, figsize=(8, 8), cmap=None, image_shape=None
 ):
     """
     Display a random subset of images in a grid.
 
     Args:
         images: Collection of images to display.
+        fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
         seed: Random seed used to sample the images.
         n: Number of images to display.
         figsize: Figure size for the plot.
@@ -118,7 +172,8 @@ def plot_random_images(
     rows = int(np.sqrt(n))
     cols = int(np.ceil(n / rows))
 
-    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    figure_num = _current_fig_num(fig_num)
+    fig, axes = plt.subplots(rows, cols, figsize=figsize, num=figure_num, clear=True)
     axes = np.array(axes).reshape(-1)
 
     for ax, idx in zip(axes, indices):
@@ -145,17 +200,22 @@ def plot_random_images(
     for ax in axes[len(indices) :]:
         ax.axis("off")
 
-    plt.tight_layout()
+    _annotate_figure_number(fig, figure_num)
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.show()
+    _advance_fig_num(fig_num)
 
 
-def plot_training_history(train_loss: list[float], val_loss: list[float]) -> None:
+def plot_training_history(
+    train_loss: list[float], val_loss: list[float], fig_num=None
+) -> None:
     """
     Plot training and validation loss curves.
 
     Args:
         train_loss (list[float]): Training loss history.
         val_loss (list[float]): Validation loss history.
+        fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
     """
     train_loss = np.asarray(train_loss, dtype=float).reshape(-1)
     val_loss = np.asarray(val_loss, dtype=float).reshape(-1)
@@ -186,7 +246,8 @@ def plot_training_history(train_loss: list[float], val_loss: list[float]) -> Non
         padded = np.pad(values, (window // 2, window - 1 - window // 2), mode="edge")
         return np.convolve(padded, kernel, mode="valid")
 
-    plt.figure(figsize=(11, 6))
+    figure_num = _current_fig_num(fig_num)
+    fig = plt.figure(figsize=(11, 6), num=figure_num, clear=True)
 
     if train_loss.size:
         plt.plot(train_x, train_loss, color="#1f77b4", alpha=0.25, linewidth=1.5)
@@ -226,8 +287,10 @@ def plot_training_history(train_loss: list[float], val_loss: list[float]) -> Non
     plt.yticks(fontsize=11)
     plt.grid(True, linestyle="--", alpha=0.35)
     plt.legend(fontsize=11, frameon=True)
-    plt.tight_layout()
+    _annotate_figure_number(fig, figure_num)
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.show()
+    _advance_fig_num(fig_num)
 
 
 def evaluate_model(
@@ -239,7 +302,8 @@ def evaluate_model(
     dataset_name: str = "emnist_bymerge",
     val_name: str = "Validation",
     device=None,
-):
+    fig_num=None,
+) -> None:
     """
     Evaluate a multiclass classification model and plot summary metrics.
 
@@ -254,6 +318,7 @@ def evaluate_model(
         val_name (str, optional): Name displayed for the validation split. Defaults to
             `"Validation"`.
         device (optional): Device used for PyTorch-based models. Defaults to None.
+        fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
     """
 
     def plot_bar_metric(ax, train_value, val_value, title, ylabel):
@@ -348,10 +413,14 @@ def evaluate_model(
     val_cm, val_classes = compute_multiclass_confusion_matrix(y_val, y_val_pred)
 
     # Plot all metrics in a 2x2 grid
+    figure_num = _current_fig_num(fig_num)
+
     fig, axes = plt.subplots(
         2,
         2,
         figsize=(18, 14),
+        num=figure_num,
+        clear=True,
         gridspec_kw={"height_ratios": [1, 1.8]},
     )
 
@@ -370,8 +439,10 @@ def evaluate_model(
     fig.colorbar(train_image, ax=axes[1, 0], fraction=0.046, pad=0.04)
     fig.colorbar(val_image, ax=axes[1, 1], fraction=0.046, pad=0.04)
 
-    plt.tight_layout()
+    _annotate_figure_number(fig, figure_num)
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.show()
+    _advance_fig_num(fig_num)
 
 
 def plot_model_metric_comparison(
@@ -382,7 +453,8 @@ def plot_model_metric_comparison(
     device=None,
     split_name: str = "Test",
     sort_by: str = "f1_score",
-):
+    fig_num=None,
+) -> None:
     """
     Plot a final comparison of accuracy and macro F1-score across models.
 
@@ -397,6 +469,7 @@ def plot_model_metric_comparison(
             Defaults to `"Test"`.
         sort_by (str, optional): Column used to sort the comparison table.
             Must be `"accuracy"` or `"f1_score"`. Defaults to `"f1_score"`.
+        fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
     """
     if sort_by not in {"accuracy", "f1_score"}:
         raise ValueError("sort_by debe ser 'accuracy' o 'f1_score'")
@@ -440,7 +513,10 @@ def plot_model_metric_comparison(
     x = np.arange(len(results_df))
     width = 0.36
 
-    fig, ax = plt.subplots(figsize=(max(9, len(results_df) * 1.4), 6))
+    figure_num = _current_fig_num(fig_num)
+    fig, ax = plt.subplots(
+        figsize=(max(9, len(results_df) * 1.4), 6), num=figure_num, clear=True
+    )
 
     accuracy_bars = ax.bar(
         x - width / 2,
@@ -502,8 +578,10 @@ def plot_model_metric_comparison(
         color="#444444",
     )
 
-    plt.tight_layout()
+    _annotate_figure_number(fig, figure_num)
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.show()
+    _advance_fig_num(fig_num)
 
 
 def compare_models(models: list, model_names: list[str] = None):
