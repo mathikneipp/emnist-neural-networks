@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
+import torch.nn.functional as F
 
 from ..evaluation.metrics import (
     compute_accuracy,
@@ -9,6 +10,8 @@ from ..evaluation.metrics import (
     compute_multiclass_confusion_matrix,
 )
 from ..evaluation.predictions import get_predictions
+from ..models.custom.neural_network import SecuentialNeuralNetwork
+from ..models.torch.mlp import MLP
 
 EMNIST_CLASSES = [
     "0",  # 0
@@ -104,7 +107,9 @@ def _advance_fig_num(fig_num):
     if fig_num is None:
         return
     if not isinstance(fig_num, list) or len(fig_num) != 1:
-        raise ValueError("fig_num debe ser None o una lista con un único entero, por ejemplo [1]")
+        raise ValueError(
+            "fig_num debe ser None o una lista con un único entero, por ejemplo [1]"
+        )
     fig_num[0] += 1
 
 
@@ -121,7 +126,9 @@ def _current_fig_num(fig_num):
     if fig_num is None:
         return None
     if not isinstance(fig_num, list) or len(fig_num) != 1:
-        raise ValueError("fig_num debe ser None o una lista con un único entero, por ejemplo [1]")
+        raise ValueError(
+            "fig_num debe ser None o una lista con un único entero, por ejemplo [1]"
+        )
     return fig_num[0]
 
 
@@ -145,6 +152,144 @@ def _annotate_figure_number(fig, fig_num) -> None:
         fontweight="bold",
         color="#444444",
     )
+
+
+def _get_model_probabilities(model, X, device) -> np.ndarray:
+    """
+    Generate class probabilities for either a custom or PyTorch model.
+
+    Args:
+        model: Trained model instance.
+        X: Input samples.
+        device: Device used for PyTorch-based models.
+
+    Returns:
+        np.ndarray: Predicted class probabilities.
+    """
+    X = _to_numpy(X)
+
+    if isinstance(model, SecuentialNeuralNetwork):
+        return model.predict(X)
+
+    if isinstance(model, MLP):
+        X_tensor = torch.from_numpy(X).float().to(device)
+        model.eval()
+
+        with torch.no_grad():
+            logits = model(X_tensor)
+            return F.softmax(logits, dim=1).cpu().numpy()
+
+    raise TypeError("Tipo de modelo no soportado")
+
+
+def _compute_cross_entropy(model, X, y, device) -> float:
+    """
+    Compute multiclass cross-entropy for either a custom or PyTorch model.
+
+    Args:
+        model: Trained model instance.
+        X: Input samples.
+        y: Ground-truth labels.
+        device: Device used for PyTorch-based models.
+
+    Returns:
+        float: Mean cross-entropy loss.
+    """
+    y = _normalize_targets(y)
+
+    if isinstance(model, SecuentialNeuralNetwork):
+        y_prob = _get_model_probabilities(model, X, device)
+        return float(model.loss_function.fn(y, y_prob))
+
+    if isinstance(model, MLP):
+        X_tensor = torch.from_numpy(_to_numpy(X)).float().to(device)
+        y_tensor = torch.from_numpy(y).long().to(device)
+        model.eval()
+
+        with torch.no_grad():
+            logits = model(X_tensor)
+            loss = F.cross_entropy(logits, y_tensor)
+            return float(loss.item())
+
+    raise TypeError("Tipo de modelo no soportado")
+
+
+def _compute_split_metrics(model, X, y, device) -> dict[str, float]:
+    """
+    Compute accuracy, macro F1 and cross-entropy for one dataset split.
+
+    Args:
+        model: Trained model instance.
+        X: Input samples.
+        y: Ground-truth labels.
+        device: Device used for PyTorch-based models.
+
+    Returns:
+        dict[str, float]: Metrics for the provided split.
+    """
+    y_true = _normalize_targets(y)
+    y_pred = get_predictions(model, _to_numpy(X), device)
+    macro_f1, _ = compute_macro_f1_ova(y_true, y_pred)
+
+    return {
+        "acc": compute_accuracy(y_true, y_pred),
+        "f1": macro_f1,
+        "cross_entropy": _compute_cross_entropy(model, X, y_true, device),
+    }
+
+
+def compare_models_table(
+    model1, model2, X_train, y_train, X_val, y_val, device, fig_num=None
+) -> pd.DataFrame:
+    """
+    Build a comparative metrics table for two classification models.
+
+    Args:
+        model1: First trained model.
+        model2: Second trained model.
+        X_train: Training inputs.
+        y_train: Training labels.
+        X_val: Validation inputs.
+        y_val: Validation labels.
+        device: Device used for PyTorch-based models.
+        fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
+
+    Returns:
+        pd.DataFrame: Comparative table with train and validation metrics.
+    """
+    metrics_model1 = {
+        "train": _compute_split_metrics(model1, X_train, y_train, device),
+        "val": _compute_split_metrics(model1, X_val, y_val, device),
+    }
+    metrics_model2 = {
+        "train": _compute_split_metrics(model2, X_train, y_train, device),
+        "val": _compute_split_metrics(model2, X_val, y_val, device),
+    }
+
+    comparison_df = pd.DataFrame(
+        [
+            {
+                "model": "model1",
+                "train_acc": metrics_model1["train"]["acc"],
+                "train_f1": metrics_model1["train"]["f1"],
+                "train_cross_entropy": metrics_model1["train"]["cross_entropy"],
+                "val_acc": metrics_model1["val"]["acc"],
+                "val_f1": metrics_model1["val"]["f1"],
+                "val_cross_entropy": metrics_model1["val"]["cross_entropy"],
+            },
+            {
+                "model": "model2",
+                "train_acc": metrics_model2["train"]["acc"],
+                "train_f1": metrics_model2["train"]["f1"],
+                "train_cross_entropy": metrics_model2["train"]["cross_entropy"],
+                "val_acc": metrics_model2["val"]["acc"],
+                "val_f1": metrics_model2["val"]["f1"],
+                "val_cross_entropy": metrics_model2["val"]["cross_entropy"],
+            },
+        ]
+    ).set_index("model")
+
+    return comparison_df
 
 
 def plot_random_images(
@@ -321,7 +466,7 @@ def evaluate_model(
         fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
     """
 
-    def plot_bar_metric(ax, train_value, val_value, title, ylabel):
+    def plot_bar_metric(ax, train_value, val_value, title, ylabel, ylim=None):
         """
         Plot a bar chart comparing training and validation metrics on a given axis.
 
@@ -331,23 +476,27 @@ def evaluate_model(
             val_value: Metric value for the validation split.
             title: Plot title.
             ylabel: Label for the y-axis.
+            ylim: Optional y-axis limits.
         """
         values = [train_value, val_value]
         labels = ["Train", val_name]
 
         bars = ax.bar(labels, values, color=["#1f77b4", "#d62728"], width=0.6)
 
-        ax.set_ylim(0, 1)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
 
         ax.set_title(title, fontsize=15, fontweight="bold")
         ax.set_ylabel(ylabel, fontsize=12)
 
         ax.grid(axis="y", linestyle="--", alpha=0.35)
+        y_min, y_max = ax.get_ylim()
+        label_offset = (y_max - y_min) * 0.02
 
         for bar, value in zip(bars, values):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
-                value + 0.02,
+                value + label_offset,
                 f"{value:.4f}",
                 ha="center",
                 fontsize=11,
@@ -402,42 +551,78 @@ def evaluate_model(
     train_accuracy = compute_accuracy(y_train, y_train_pred)
     val_accuracy = compute_accuracy(y_val, y_val_pred)
 
+    train_loss_history = None
+    val_loss_history = None
+
+    if hasattr(model, "train_loss") and hasattr(model, "val_loss"):
+        train_loss_history = np.asarray(model.train_loss, dtype=float).reshape(-1)
+        val_loss_history = np.asarray(model.val_loss, dtype=float).reshape(-1)
+
+    if (
+        train_loss_history is not None
+        and val_loss_history is not None
+        and train_loss_history.size > 0
+        and val_loss_history.size > 0
+    ):
+        train_cross_entropy = float(np.min(train_loss_history))
+        val_cross_entropy = float(np.min(val_loss_history))
+    else:
+        # Fallback for models re-trained without stored validation history.
+        train_cross_entropy = _compute_cross_entropy(model, X_train, y_train, device)
+        val_cross_entropy = _compute_cross_entropy(model, X_val, y_val, device)
     # Compute one-vs-all macro F1
-    train_f1, _ = compute_macro_f1_ova(
-        y_train, y_train_pred, classes=metric_classes
-    )
+    train_f1, _ = compute_macro_f1_ova(y_train, y_train_pred, classes=metric_classes)
     val_f1, _ = compute_macro_f1_ova(y_val, y_val_pred, classes=metric_classes)
 
     # Compute multiclass confusion matrices
     train_cm, train_classes = compute_multiclass_confusion_matrix(y_train, y_train_pred)
     val_cm, val_classes = compute_multiclass_confusion_matrix(y_val, y_val_pred)
 
-    # Plot all metrics in a 2x2 grid
-    figure_num = _current_fig_num(fig_num)
+    cross_entropy_max = max(train_cross_entropy, val_cross_entropy)
+    cross_entropy_ylim = (0, cross_entropy_max * 1.08 if cross_entropy_max > 0 else 0.1)
 
-    fig, axes = plt.subplots(
-        2,
-        2,
-        figsize=(18, 14),
-        num=figure_num,
-        clear=True,
-        gridspec_kw={"height_ratios": [1, 1.8]},
-    )
+    # Plot all metrics with 3 charts on top and 2 full-width confusion matrices below
+    figure_num = _current_fig_num(fig_num)
+    fig = plt.figure(figsize=(22, 18), num=figure_num, clear=True)
+    grid = fig.add_gridspec(2, 6, height_ratios=[1, 1.8])
+    metric_axes = [fig.add_subplot(grid[0, i * 2 : (i + 1) * 2]) for i in range(3)]
+    train_cm_ax = fig.add_subplot(grid[1, :3])
+    val_cm_ax = fig.add_subplot(grid[1, 3:])
 
     plot_bar_metric(
-        axes[0, 0], train_accuracy, val_accuracy, "Overall Accuracy", "Accuracy"
+        metric_axes[0],
+        train_accuracy,
+        val_accuracy,
+        "Overall Accuracy",
+        "Accuracy",
+        ylim=(0, 1),
     )
-    plot_bar_metric(axes[0, 1], train_f1, val_f1, "Macro F1-Score", "F1-Score")
+    plot_bar_metric(
+        metric_axes[1],
+        train_cross_entropy,
+        val_cross_entropy,
+        f"Cross-Entropy",
+        "Cross-Entropy",
+        ylim=cross_entropy_ylim,
+    )
+    plot_bar_metric(
+        metric_axes[2],
+        train_f1,
+        val_f1,
+        "Macro F1-Score",
+        "F1-Score",
+        ylim=(0, 1),
+    )
 
     train_image = plot_confusion_matrix(
-        axes[1, 0], train_cm, train_classes, "Train Confusion Matrix"
+        train_cm_ax, train_cm, train_classes, "Train Confusion Matrix"
     )
     val_image = plot_confusion_matrix(
-        axes[1, 1], val_cm, val_classes, f"{val_name} Confusion Matrix"
+        val_cm_ax, val_cm, val_classes, f"{val_name} Confusion Matrix"
     )
 
-    fig.colorbar(train_image, ax=axes[1, 0], fraction=0.046, pad=0.04)
-    fig.colorbar(val_image, ax=axes[1, 1], fraction=0.046, pad=0.04)
+    fig.colorbar(train_image, ax=train_cm_ax, fraction=0.046, pad=0.04)
+    fig.colorbar(val_image, ax=val_cm_ax, fraction=0.046, pad=0.04)
 
     _annotate_figure_number(fig, figure_num)
     plt.tight_layout(rect=(0, 0, 1, 0.96))
@@ -468,11 +653,12 @@ def plot_model_metric_comparison(
         split_name (str, optional): Name displayed in the plot title.
             Defaults to `"Test"`.
         sort_by (str, optional): Column used to sort the comparison table.
-            Must be `"accuracy"` or `"f1_score"`. Defaults to `"f1_score"`.
+            Must be `"accuracy"`, `"f1_score"` or `"cross_entropy"`.
+            Defaults to `"f1_score"`.
         fig_num: Lista mutable con el número de figura actual, por ejemplo `[1]`.
     """
-    if sort_by not in {"accuracy", "f1_score"}:
-        raise ValueError("sort_by debe ser 'accuracy' o 'f1_score'")
+    if sort_by not in {"accuracy", "f1_score", "cross_entropy"}:
+        raise ValueError("sort_by debe ser 'accuracy', 'f1_score' o 'cross_entropy'")
 
     y = _normalize_targets(y)
     metric_classes = None
@@ -495,31 +681,52 @@ def plot_model_metric_comparison(
         y_pred = get_predictions(model, X, device)
         accuracy = compute_accuracy(y, y_pred)
         f1_score, _ = compute_macro_f1_ova(y, y_pred, classes=metric_classes)
+        val_loss = None
+
+        if hasattr(model, "val_loss"):
+            val_loss = np.asarray(model.val_loss, dtype=float).reshape(-1)
+
+        if val_loss is not None and val_loss.size > 0:
+            cross_entropy = float(np.min(val_loss))
+        else:
+            cross_entropy = _compute_cross_entropy(model, X, y, device)
 
         rows.append(
             {
                 "model": model_name,
                 "accuracy": accuracy,
                 "f1_score": f1_score,
+                "cross_entropy": cross_entropy,
             }
         )
 
+    ascending = sort_by == "cross_entropy"
     results_df = (
         pd.DataFrame(rows)
-        .sort_values(by=[sort_by, "accuracy"], ascending=False)
+        .sort_values(
+            by=[sort_by, "accuracy"],
+            ascending=[ascending, False],
+        )
         .reset_index(drop=True)
     )
 
-    x = np.arange(len(results_df))
-    width = 0.36
+    group_spacing = 1.
+    x = np.arange(len(results_df), dtype=float) * group_spacing
+    width = 0.26
+    metric_offset = 0.28
+    label_x_offsets = {
+        "accuracy": -0.02,
+        "f1_score": 0.0,
+        "cross_entropy": 0.02,
+    }
 
     figure_num = _current_fig_num(fig_num)
     fig, ax = plt.subplots(
-        figsize=(max(9, len(results_df) * 1.4), 6), num=figure_num, clear=True
+        figsize=(max(10, len(results_df) * 1.75), 6.4), num=figure_num, clear=True
     )
 
     accuracy_bars = ax.bar(
-        x - width / 2,
+        x - metric_offset,
         results_df["accuracy"],
         width=width,
         label="Accuracy",
@@ -528,7 +735,7 @@ def plot_model_metric_comparison(
         linewidth=1.2,
     )
     f1_bars = ax.bar(
-        x + width / 2,
+        x,
         results_df["f1_score"],
         width=width,
         label="Macro F1-Score",
@@ -536,17 +743,36 @@ def plot_model_metric_comparison(
         edgecolor="white",
         linewidth=1.2,
     )
+    cross_entropy_bars = ax.bar(
+        x + metric_offset,
+        results_df["cross_entropy"],
+        width=width,
+        label="Best Cross-Entropy",
+        color="#2ca02c",
+        edgecolor="white",
+        linewidth=1.2,
+    )
 
-    for bars in (accuracy_bars, f1_bars):
+    label_offsets = {
+        "accuracy": 0.018,
+        "f1_score": 0.045,
+        "cross_entropy": 0.018,
+    }
+
+    for bars, metric_name in (
+        (accuracy_bars, "accuracy"),
+        (f1_bars, "f1_score"),
+        (cross_entropy_bars, "cross_entropy"),
+    ):
         for bar in bars:
             height = bar.get_height()
             ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                height + 0.012,
+                bar.get_x() + bar.get_width() / 2 + label_x_offsets[metric_name],
+                height + label_offsets[metric_name],
                 f"{height:.3f}",
                 ha="center",
                 va="bottom",
-                fontsize=10,
+                fontsize=9.5,
                 fontweight="bold",
             )
 
@@ -556,11 +782,13 @@ def plot_model_metric_comparison(
         fontweight="bold",
         pad=14,
     )
-    ax.set_ylabel("Score", fontsize=12)
+    ax.set_ylabel("Score / Loss", fontsize=12)
     ax.set_xticks(x)
-    ax.set_xticklabels(results_df["model"], ha="right")
+    ax.set_xticklabels(results_df["model"], ha="center")
+    ax.margins(x=0.08)
     ax.set_ylim(
-        0, min(1.08, results_df[["accuracy", "f1_score"]].to_numpy().max() + 0.12)
+        0,
+        results_df[["accuracy", "f1_score", "cross_entropy"]].to_numpy().max() + 0.12,
     )
     ax.grid(axis="y", linestyle="--", alpha=0.35)
     ax.set_axisbelow(True)

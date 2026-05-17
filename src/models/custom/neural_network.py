@@ -122,7 +122,7 @@ class SecuentialNeuralNetwork:
                         wait += 1
 
                         if wait >= early_stopping:
-                            if not grid_search: 
+                            if not grid_search:
                                 print(f"Early stopping after epoch: {epoch}")
                             break
 
@@ -132,7 +132,7 @@ class SecuentialNeuralNetwork:
             self.layers = best_layers
 
         if best_epoch is None:
-            return epoch + 1
+            return np.argmin(self.val_loss) if self.val_loss else epoch + 1
 
         return best_epoch + 1
 
